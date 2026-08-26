@@ -1,0 +1,178 @@
+"use client";
+
+import { useCallback, useState } from "react";
+import { AnimatePresence, motion } from "motion/react";
+import { toast } from "sonner";
+
+import { CartScreen } from "@/components/terminal/cart-screen";
+import { MenuScreen } from "@/components/terminal/menu-screen";
+import { PaymentChoice } from "@/components/terminal/payment-choice";
+import { PaypalScreen } from "@/components/terminal/paypal-screen";
+import { SuccessScreen } from "@/components/terminal/success-screen";
+import { useCart } from "@/hooks/use-cart";
+import { useEventStream } from "@/hooks/use-event-stream";
+import type { CatalogCategory } from "@/lib/catalog";
+import type { OrderSource, PaymentMethod } from "@/lib/db/schema";
+import { terminalMessages as t } from "@/lib/messages";
+import { orderDisplayLabel } from "@/lib/order-label";
+
+/** The steps of an order, from menu browsing to the confirmation screen. */
+type Step = "menu" | "cart" | "payment" | "paypal" | "success";
+
+/**
+ * The shared ordering brain: Menü → Warenkorb → Zahlung → PayPal-QR / Erfolg.
+ * Owns the cart, the step machine and the order submission; the hosting surface
+ * decides how it is entered and what happens around it:
+ *
+ * - Terminal wraps it with the welcome/attract screen + idle-timeout (`source: "terminal"`).
+ * - Kasse mounts it directly to take an order on behalf of a guest (`source: "kasse"`).
+ *
+ * `onExit` fires when the guest cancels out of the menu; `onComplete` fires after
+ * the success screen. The host provides its own `<Toaster />`.
+ */
+export function OrderFlow({
+  paypalHandle,
+  initialCatalog,
+  source,
+  onExit,
+  onComplete,
+}: {
+  paypalHandle: string | null;
+  initialCatalog: CatalogCategory[];
+  source: OrderSource;
+  onExit: () => void;
+  onComplete: () => void;
+}) {
+  const [categories, setCategories] = useState(initialCatalog);
+  const [step, setStep] = useState<Step>("menu");
+  const [name, setName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [lastOrder, setLastOrder] = useState<{ method: PaymentMethod; label: string } | null>(null);
+  const cart = useCart();
+
+  const refetchCatalog = useCallback(async () => {
+    try {
+      const response = await fetch("/api/catalog", { cache: "no-store" });
+      if (!response.ok) return;
+      const data: { categories: CatalogCategory[] } = await response.json();
+      setCategories(data.categories);
+    } catch {
+      // network hiccup — keep the current catalog
+    }
+  }, []);
+
+  useEventStream(["catalog:changed"], refetchCatalog);
+
+  const submitOrder = useCallback(
+    async (method: PaymentMethod) => {
+      if (submitting) return;
+      setSubmitting(true);
+      try {
+        const response = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: cart.lines.map((line) => ({
+              productId: line.productId,
+              quantity: line.quantity,
+            })),
+            guestName: name.trim() || undefined,
+            paymentMethod: method,
+            source,
+          }),
+        });
+
+        if (response.status === 409) {
+          toast.error(t.errors.stock);
+          await refetchCatalog();
+          setStep("menu");
+          return;
+        }
+        if (!response.ok) {
+          toast.error(t.errors.generic);
+          return;
+        }
+
+        const result: { orderNumber: number } = await response.json();
+        setLastOrder({
+          method,
+          label: orderDisplayLabel({ guestName: name, orderNumber: result.orderNumber }),
+        });
+        cart.clear();
+        setName("");
+        setStep("success");
+      } catch {
+        toast.error(t.errors.generic);
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [cart, name, refetchCatalog, source, submitting],
+  );
+
+  const handlePaymentSelect = useCallback(
+    (method: PaymentMethod) => {
+      if (method === "paypal") {
+        setStep("paypal");
+      } else {
+        void submitOrder("cash");
+      }
+    },
+    [submitOrder],
+  );
+
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={step}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="h-dvh w-full"
+      >
+        {step === "menu" && (
+          <MenuScreen
+            categories={categories}
+            cart={cart}
+            onCheckout={() => setStep("cart")}
+            onCancel={onExit}
+          />
+        )}
+        {step === "cart" && (
+          <CartScreen
+            cart={cart}
+            name={name}
+            onNameChange={setName}
+            onBack={() => setStep("menu")}
+            onContinue={() => setStep("payment")}
+          />
+        )}
+        {step === "payment" && (
+          <PaymentChoice
+            totalCents={cart.totalCents}
+            paypalAvailable={!!paypalHandle}
+            onSelect={handlePaymentSelect}
+            onBack={() => setStep("cart")}
+          />
+        )}
+        {step === "paypal" && paypalHandle && (
+          <PaypalScreen
+            handle={paypalHandle}
+            totalCents={cart.totalCents}
+            submitting={submitting}
+            onPaid={() => void submitOrder("paypal")}
+            onBack={() => setStep("payment")}
+          />
+        )}
+        {step === "success" && lastOrder && (
+          <SuccessScreen
+            method={lastOrder.method}
+            orderLabel={lastOrder.label}
+            onDone={onComplete}
+          />
+        )}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
