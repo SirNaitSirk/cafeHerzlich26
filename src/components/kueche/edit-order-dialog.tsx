@@ -19,7 +19,13 @@ import type { OrderWithItems, UpdateOrderInput } from "@/lib/orders";
 import { cn } from "@/lib/utils";
 
 /** Draft quantity per order item while editing (0 = removed). */
-type Draft = { orderItemId: number; name: string; unitPriceCents: number; quantity: number };
+type Draft = {
+  orderItemId: number;
+  name: string;
+  unitPriceCents: number;
+  quantity: number;
+  modifiers: string[];
+};
 
 const MAX_QUANTITY = 99;
 
@@ -40,6 +46,7 @@ export function EditOrderDialog({
       name: item.nameSnapshot,
       unitPriceCents: item.unitPriceCents,
       quantity: item.quantity,
+      modifiers: item.modifiers.map((mod) => mod.nameSnapshot),
     }));
   }
 
@@ -117,6 +124,11 @@ export function EditOrderDialog({
             >
               <div className="min-w-0">
                 <p className="truncate font-medium">{draft.name}</p>
+                {draft.modifiers.length > 0 ? (
+                  <p className="truncate text-sm text-muted-foreground">
+                    {draft.modifiers.map((mod) => `+ ${mod}`).join(", ")}
+                  </p>
+                ) : null}
                 <p className="text-sm text-muted-foreground tabular-nums">
                   {formatEuros(draft.unitPriceCents)}
                 </p>

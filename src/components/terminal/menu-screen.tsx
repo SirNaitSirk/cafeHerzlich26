@@ -5,7 +5,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { ShoppingCart, X } from "lucide-react";
 
 import { ProductCard } from "@/components/terminal/product-card";
-import type { Cart } from "@/hooks/use-cart";
+import { ProductOptionsSheet } from "@/components/terminal/product-options-sheet";
+import type { Cart, CartModifier } from "@/hooks/use-cart";
 import type { CatalogCategory, CatalogProduct } from "@/lib/catalog";
 import { formatEuros } from "@/lib/format";
 import { terminalMessages as t } from "@/lib/messages";
@@ -27,8 +28,21 @@ export function MenuScreen({
 }) {
   const [activeId, setActiveId] = useState<number | null>(categories[0]?.id ?? null);
   const active = categories.find((category) => category.id === activeId) ?? categories[0];
+  // The product whose options sheet is open (null = none).
+  const [optionsProduct, setOptionsProduct] = useState<CatalogProduct | null>(null);
 
-  const handleAdd = (product: CatalogProduct) => cart.add(product);
+  const handleAdd = (product: CatalogProduct) => {
+    if (product.modifierGroups.length > 0) {
+      setOptionsProduct(product);
+    } else {
+      cart.add(product);
+    }
+  };
+
+  const handleConfirmOptions = (modifiers: CartModifier[], quantity: number) => {
+    if (optionsProduct) cart.add(optionsProduct, modifiers, quantity);
+    setOptionsProduct(null);
+  };
 
   return (
     <div className="flex h-dvh w-full flex-col bg-amber-50/40">
@@ -125,6 +139,17 @@ export function MenuScreen({
               <span className="text-xl font-semibold">{formatEuros(cart.totalCents)}</span>
             </button>
           </motion.div>
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {optionsProduct ? (
+          <ProductOptionsSheet
+            key={optionsProduct.id}
+            product={optionsProduct}
+            onConfirm={handleConfirmOptions}
+            onCancel={() => setOptionsProduct(null)}
+          />
         ) : null}
       </AnimatePresence>
     </div>

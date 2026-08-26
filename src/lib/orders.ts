@@ -7,11 +7,16 @@ import { db } from "@/lib/db";
 import {
   ORDER_SOURCES,
   PAYMENT_METHODS,
+  modifierGroups,
+  modifiers,
+  orderItemModifiers,
   orderItems,
   orders,
+  productModifierGroups,
   products,
   type Order,
   type OrderItem,
+  type OrderItemModifier,
   type OrderSource,
   type OrderStatus,
   type PaymentMethod,
@@ -39,6 +44,8 @@ export const createOrderSchema = z.object({
       z.object({
         productId: z.number().int().positive(),
         quantity: z.number().int().min(1).max(99),
+        /** Ids of the chosen modifier options (validated server-side). */
+        modifierIds: z.array(z.number().int().positive()).default([]),
       }),
     )
     .min(1),
@@ -110,10 +117,99 @@ function startOfTodayMs(): number {
   return now.getTime();
 }
 
+/** A validated, priced modifier ready to be snapshotted onto an order item. */
+type ResolvedModifier = {
+  modifierId: number;
+  nameSnapshot: string;
+  groupNameSnapshot: string;
+  priceDeltaCents: number;
+};
+
+/**
+ * Validates the modifier ids chosen for a product and returns the priced
+ * snapshots. Enforces: every option belongs to an active group assigned to the
+ * product and is itself active; `single` groups get at most one option; `required`
+ * groups get at least one. Never trusts client-sent prices — deltas come from the DB.
+ */
+function resolveItemModifiers(
+  tx: Tx,
+  productId: number,
+  modifierIds: number[],
+): ResolvedModifier[] {
+  // The product's assigned active groups with their active options.
+  const rows = tx
+    .select({
+      groupId: modifierGroups.id,
+      groupName: modifierGroups.name,
+      selectionType: modifierGroups.selectionType,
+      required: modifierGroups.required,
+      modifierId: modifiers.id,
+      modifierName: modifiers.name,
+      priceDeltaCents: modifiers.priceDeltaCents,
+    })
+    .from(productModifierGroups)
+    .innerJoin(modifierGroups, eq(productModifierGroups.groupId, modifierGroups.id))
+    .innerJoin(modifiers, eq(modifiers.groupId, modifierGroups.id))
+    .where(
+      and(
+        eq(productModifierGroups.productId, productId),
+        eq(modifierGroups.active, true),
+        eq(modifiers.active, true),
+      ),
+    )
+    .all();
+
+  const optionById = new Map(rows.map((row) => [row.modifierId, row]));
+  const chosen = new Set(modifierIds);
+
+  // Every chosen id must be a valid, active option assigned to this product.
+  for (const id of chosen) {
+    if (!optionById.has(id)) {
+      throw new OrderValidationError("Eine gewählte Option ist nicht verfügbar.");
+    }
+  }
+
+  // Group-level rules: single = max 1 chosen, required = min 1 chosen.
+  const groups = new Map<
+    number,
+    { selectionType: string; required: boolean; chosenCount: number }
+  >();
+  for (const row of rows) {
+    if (!groups.has(row.groupId)) {
+      groups.set(row.groupId, {
+        selectionType: row.selectionType,
+        required: row.required,
+        chosenCount: 0,
+      });
+    }
+    if (chosen.has(row.modifierId)) {
+      groups.get(row.groupId)!.chosenCount += 1;
+    }
+  }
+  for (const group of groups.values()) {
+    if (group.selectionType === "single" && group.chosenCount > 1) {
+      throw new OrderValidationError("Für eine Auswahl ist nur eine Option erlaubt.");
+    }
+    if (group.required && group.chosenCount === 0) {
+      throw new OrderValidationError("Bitte eine Pflichtoption auswählen.");
+    }
+  }
+
+  return modifierIds.map((id) => {
+    const option = optionById.get(id)!;
+    return {
+      modifierId: option.modifierId,
+      nameSnapshot: option.modifierName,
+      groupNameSnapshot: option.groupName,
+      priceDeltaCents: option.priceDeltaCents,
+    };
+  });
+}
+
 /**
  * Creates an order atomically: re-validates products, computes the total from
  * DB prices (never trusts the client), checks and decrements stock, assigns a
- * daily-resetting order number, and writes the order + item snapshots.
+ * daily-resetting order number, and writes the order + item + modifier snapshots.
  */
 export function createOrder(input: CreateOrderInput): CreateOrderResult {
   const status = initialStatus(input.paymentMethod, input.source);
@@ -130,8 +226,11 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
       .all();
     const byId = new Map(rows.map((row) => [row.id, row]));
 
+    // Validate + price every line up front: effective unit price is the product
+    // price plus the chosen modifier deltas. `totalCents` is derived here, never
+    // taken from the client.
     let totalCents = 0;
-    for (const item of input.items) {
+    const priced = input.items.map((item) => {
       const product = byId.get(item.productId);
       if (!product) {
         throw new OrderValidationError("Ein Produkt ist nicht mehr verfügbar.");
@@ -139,8 +238,12 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
       if (product.stockCount !== null && product.stockCount < item.quantity) {
         throw new OrderStockError(product.name);
       }
-      totalCents += product.priceCents * item.quantity;
-    }
+      const chosenModifiers = resolveItemModifiers(tx, product.id, item.modifierIds);
+      const deltaSum = chosenModifiers.reduce((sum, mod) => sum + mod.priceDeltaCents, 0);
+      const unitPriceCents = product.priceCents + deltaSum;
+      totalCents += unitPriceCents * item.quantity;
+      return { item, product, chosenModifiers, unitPriceCents };
+    });
 
     // Daily-resetting running number.
     const todaysCount = tx
@@ -165,20 +268,34 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
       .returning({ id: orders.id })
       .all();
 
-    tx.insert(orderItems)
-      .values(
-        input.items.map((item) => {
-          const product = byId.get(item.productId)!;
-          return {
-            orderId: order.id,
-            productId: product.id,
-            nameSnapshot: product.name,
-            unitPriceCents: product.priceCents,
-            quantity: item.quantity,
-          };
-        }),
-      )
-      .run();
+    // Insert each item, then snapshot its chosen modifiers keyed by the new id.
+    for (const { item, product, chosenModifiers, unitPriceCents } of priced) {
+      const [orderItem] = tx
+        .insert(orderItems)
+        .values({
+          orderId: order.id,
+          productId: product.id,
+          nameSnapshot: product.name,
+          unitPriceCents,
+          quantity: item.quantity,
+        })
+        .returning({ id: orderItems.id })
+        .all();
+
+      if (chosenModifiers.length > 0) {
+        tx.insert(orderItemModifiers)
+          .values(
+            chosenModifiers.map((mod) => ({
+              orderItemId: orderItem.id,
+              modifierId: mod.modifierId,
+              nameSnapshot: mod.nameSnapshot,
+              groupNameSnapshot: mod.groupNameSnapshot,
+              priceDeltaCents: mod.priceDeltaCents,
+            })),
+          )
+          .run();
+      }
+    }
 
     // Decrement stock only for products that track it.
     for (const item of input.items) {
@@ -197,10 +314,13 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
 
 export { orderDisplayLabel } from "@/lib/order-label";
 
-/** An order together with its item snapshots — the shape every staff surface reads. */
-export type OrderWithItems = Order & { items: OrderItem[] };
+/** An order item together with its chosen modifier snapshots. */
+export type OrderItemWithModifiers = OrderItem & { modifiers: OrderItemModifier[] };
 
-/** Attaches each order's item snapshots. Shared by every list query. */
+/** An order together with its item snapshots — the shape every staff surface reads. */
+export type OrderWithItems = Order & { items: OrderItemWithModifiers[] };
+
+/** Attaches each order's item snapshots (and their modifiers). Shared by every list query. */
 function hydrateOrders(orderRows: Order[]): OrderWithItems[] {
   if (orderRows.length === 0) return [];
 
@@ -215,10 +335,31 @@ function hydrateOrders(orderRows: Order[]): OrderWithItems[] {
     )
     .all();
 
-  const itemsByOrder = new Map<number, OrderItem[]>();
+  const modifierRows =
+    items.length === 0
+      ? []
+      : db
+          .select()
+          .from(orderItemModifiers)
+          .where(
+            inArray(
+              orderItemModifiers.orderItemId,
+              items.map((item) => item.id),
+            ),
+          )
+          .all();
+
+  const modifiersByItem = new Map<number, OrderItemModifier[]>();
+  for (const mod of modifierRows) {
+    const list = modifiersByItem.get(mod.orderItemId) ?? [];
+    list.push(mod);
+    modifiersByItem.set(mod.orderItemId, list);
+  }
+
+  const itemsByOrder = new Map<number, OrderItemWithModifiers[]>();
   for (const item of items) {
     const list = itemsByOrder.get(item.orderId) ?? [];
-    list.push(item);
+    list.push({ ...item, modifiers: modifiersByItem.get(item.id) ?? [] });
     itemsByOrder.set(item.orderId, list);
   }
 

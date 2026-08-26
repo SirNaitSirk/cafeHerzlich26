@@ -13,9 +13,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import type { AdminCategory, AdminProduct } from "@/lib/admin-catalog";
+import type { AdminCategory, AdminModifierGroup, AdminProduct } from "@/lib/admin-catalog";
 import { formatEuros, parseEurosToCents } from "@/lib/format";
 import { adminMessages as t } from "@/lib/messages";
+import { cn } from "@/lib/utils";
 
 export type ProductFormValues = {
   categoryId: number;
@@ -23,6 +24,7 @@ export type ProductFormValues = {
   priceCents: number;
   imageUrl: string | null;
   stockCount: number | null;
+  modifierGroupIds: number[];
 };
 
 /** Create/edit dialog for a product. `product` null = create mode. */
@@ -31,6 +33,7 @@ export function ProductFormDialog({
   onOpenChange,
   product,
   categories,
+  modifierGroups,
   defaultCategoryId,
   onSubmit,
 }: {
@@ -38,6 +41,7 @@ export function ProductFormDialog({
   onOpenChange: (open: boolean) => void;
   product: AdminProduct | null;
   categories: AdminCategory[];
+  modifierGroups: AdminModifierGroup[];
   defaultCategoryId: number | null;
   onSubmit: (values: ProductFormValues) => Promise<boolean>;
 }) {
@@ -48,6 +52,7 @@ export function ProductFormDialog({
   const [price, setPrice] = useState(product ? formatPrice(product.priceCents) : "");
   const [imageUrl, setImageUrl] = useState<string | null>(product?.imageUrl ?? null);
   const [stock, setStock] = useState(product?.stockCount != null ? String(product.stockCount) : "");
+  const [groupIds, setGroupIds] = useState<number[]>(product?.modifierGroupIds ?? []);
   const [submitting, setSubmitting] = useState(false);
   const [priceError, setPriceError] = useState(false);
 
@@ -60,10 +65,21 @@ export function ProductFormDialog({
       setPrice(product ? formatPrice(product.priceCents) : "");
       setImageUrl(product?.imageUrl ?? null);
       setStock(product?.stockCount != null ? String(product.stockCount) : "");
+      setGroupIds(product?.modifierGroupIds ?? []);
       setSubmitting(false);
       setPriceError(false);
     }
   }
+
+  // Only active groups are assignable; keep already-assigned ids even if edited.
+  const assignableGroups = modifierGroups.filter(
+    (group) => group.active || groupIds.includes(group.id),
+  );
+
+  const toggleGroup = (id: number) =>
+    setGroupIds((current) =>
+      current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
+    );
 
   const trimmedName = name.trim();
   const canSave = trimmedName !== "" && categoryId > 0;
@@ -86,6 +102,7 @@ export function ProductFormDialog({
       priceCents,
       imageUrl,
       stockCount: Number.isNaN(stockCount as number) ? null : stockCount,
+      modifierGroupIds: groupIds,
     });
     setSubmitting(false);
     if (ok) onOpenChange(false);
@@ -177,6 +194,37 @@ export function ProductFormDialog({
               className="h-11"
             />
             <p className="text-xs text-muted-foreground">{t.products.form.stockHint}</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-sm font-medium">{t.modifiers.assign.label}</span>
+            <p className="text-xs text-muted-foreground">{t.modifiers.assign.hint}</p>
+            {assignableGroups.length === 0 ? (
+              <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                {t.modifiers.assign.none}
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {assignableGroups.map((group) => {
+                  const active = groupIds.includes(group.id);
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      onClick={() => toggleGroup(group.id)}
+                      className={cn(
+                        "rounded-full border px-3.5 py-2 text-sm font-medium transition-colors",
+                        active
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-input hover:bg-muted/50",
+                      )}
+                    >
+                      {group.name}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 /**
  * Database schema — SQLite via Drizzle. Source of truth for the DB structure.
@@ -97,6 +97,70 @@ export const orderItems = sqliteTable("order_items", {
   quantity: integer("quantity").notNull(),
 });
 
+/**
+ * How many options a guest may pick from a modifier group.
+ * - single: exactly one (radio) — e.g. milk type.
+ * - multi:  any number (checkboxes) — e.g. extra shots, syrups.
+ */
+export const MODIFIER_SELECTION_TYPES = ["single", "multi"] as const;
+export type ModifierSelectionType = (typeof MODIFIER_SELECTION_TYPES)[number];
+
+/** A reusable option group ("Extras", "Milch") assignable to many products. */
+export const modifierGroups = sqliteTable("modifier_groups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  selectionType: text("selection_type").$type<ModifierSelectionType>().notNull(),
+  /** When true, the guest must pick at least one option before adding to cart. */
+  required: integer("required", { mode: "boolean" }).notNull().default(false),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at").notNull().default(now),
+});
+
+/** A single choice within a group ("Schuss Karamell"). No stock — only active/inactive. */
+export const modifiers = sqliteTable("modifiers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  groupId: integer("group_id")
+    .notNull()
+    .references(() => modifierGroups.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  /** Surcharge in integer cents added to the product price. May be 0. */
+  priceDeltaCents: integer("price_delta_cents").notNull().default(0),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at").notNull().default(now),
+});
+
+/** Many-to-many: which groups apply to which product. */
+export const productModifierGroups = sqliteTable(
+  "product_modifier_groups",
+  {
+    productId: integer("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => modifierGroups.id, { onDelete: "cascade" }),
+    sortOrder: integer("sort_order").notNull().default(0),
+  },
+  (table) => [primaryKey({ columns: [table.productId, table.groupId] })],
+);
+
+/** Snapshot of the modifiers chosen for one order item — history must stay stable. */
+export const orderItemModifiers = sqliteTable("order_item_modifiers", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  orderItemId: integer("order_item_id")
+    .notNull()
+    .references(() => orderItems.id, { onDelete: "cascade" }),
+  /** Nullable so history survives modifier deletion. */
+  modifierId: integer("modifier_id").references(() => modifiers.id, {
+    onDelete: "set null",
+  }),
+  nameSnapshot: text("name_snapshot").notNull(),
+  groupNameSnapshot: text("group_name_snapshot").notNull(),
+  priceDeltaCents: integer("price_delta_cents").notNull(),
+});
+
 /** Café-wide key/value settings (e.g. PayPal handle for the QR, café name). */
 export const settings = sqliteTable("settings", {
   key: text("key").primaryKey(),
@@ -111,4 +175,12 @@ export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type NewOrderItem = typeof orderItems.$inferInsert;
+export type ModifierGroup = typeof modifierGroups.$inferSelect;
+export type NewModifierGroup = typeof modifierGroups.$inferInsert;
+export type Modifier = typeof modifiers.$inferSelect;
+export type NewModifier = typeof modifiers.$inferInsert;
+export type ProductModifierGroup = typeof productModifierGroups.$inferSelect;
+export type NewProductModifierGroup = typeof productModifierGroups.$inferInsert;
+export type OrderItemModifier = typeof orderItemModifiers.$inferSelect;
+export type NewOrderItemModifier = typeof orderItemModifiers.$inferInsert;
 export type Setting = typeof settings.$inferSelect;

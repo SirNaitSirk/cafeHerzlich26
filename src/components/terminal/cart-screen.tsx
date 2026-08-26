@@ -41,7 +41,7 @@ export function CartScreen({
           <AnimatePresence initial={false}>
             {cart.lines.map((line) => (
               <motion.li
-                key={line.productId}
+                key={line.lineId}
                 layout
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -50,13 +50,22 @@ export function CartScreen({
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium text-stone-800">{line.name}</div>
+                  {line.modifiers.length > 0 ? (
+                    <ul className="mt-0.5 space-y-0.5">
+                      {line.modifiers.map((mod) => (
+                        <li key={mod.modifierId} className="truncate text-sm text-stone-500">
+                          + {mod.name}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                   <div className="text-sm text-amber-700">{formatEuros(line.priceCents)}</div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => cart.setQuantity(line.productId, line.quantity - 1)}
+                    onClick={() => cart.setQuantity(line.lineId, line.quantity - 1)}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100 text-amber-800"
                     aria-label={t.cart.remove}
                   >
@@ -67,7 +76,7 @@ export function CartScreen({
                   </span>
                   <button
                     type="button"
-                    onClick={() => cart.setQuantity(line.productId, line.quantity + 1)}
+                    onClick={() => cart.setQuantity(line.lineId, line.quantity + 1)}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-600 text-white"
                     aria-label={t.menu.add}
                   >

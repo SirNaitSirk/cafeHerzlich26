@@ -63,6 +63,11 @@ export function CashOrderCard({
             <span className="min-w-0">
               <span className="font-semibold tabular-nums">{item.quantity}×</span>{" "}
               <span className="text-foreground/90">{item.nameSnapshot}</span>
+              {item.modifiers.length > 0 ? (
+                <span className="mt-0.5 block text-sm text-muted-foreground">
+                  {item.modifiers.map((mod) => `+ ${mod.nameSnapshot}`).join(", ")}
+                </span>
+              ) : null}
             </span>
             <span className="shrink-0 tabular-nums text-muted-foreground">
               {formatEuros(item.unitPriceCents * item.quantity)}

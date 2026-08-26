@@ -1,10 +1,18 @@
 import "server-only";
 
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { categories, products } from "@/lib/db/schema";
+import {
+  MODIFIER_SELECTION_TYPES,
+  categories,
+  modifierGroups,
+  modifiers,
+  productModifierGroups,
+  products,
+  type ModifierSelectionType,
+} from "@/lib/db/schema";
 
 /**
  * Admin catalog service. Unlike `src/lib/catalog.ts` (terminal — active only),
@@ -24,6 +32,29 @@ export type AdminProduct = {
   stockCount: number | null;
   active: boolean;
   sortOrder: number;
+  /** Ids of the modifier groups assigned to this product. */
+  modifierGroupIds: number[];
+};
+
+/** A single option within a group, as managed in the admin (incl. inactive). */
+export type AdminModifier = {
+  id: number;
+  groupId: number;
+  name: string;
+  priceDeltaCents: number;
+  active: boolean;
+  sortOrder: number;
+};
+
+/** A modifier group with its options — the shape the admin manager reads. */
+export type AdminModifierGroup = {
+  id: number;
+  name: string;
+  selectionType: ModifierSelectionType;
+  required: boolean;
+  active: boolean;
+  sortOrder: number;
+  modifiers: AdminModifier[];
 };
 
 export type AdminCategory = {
@@ -70,12 +101,15 @@ export const updateCategorySchema = z.object({
   active: z.boolean().optional(),
 });
 
+const groupIdsSchema = z.array(z.number().int().positive()).max(50);
+
 export const createProductSchema = z.object({
   categoryId: z.number().int().positive(),
   name: nameSchema,
   priceCents: priceSchema,
   imageUrl: imageUrlSchema.optional(),
   stockCount: stockSchema.optional(),
+  modifierGroupIds: groupIdsSchema.optional(),
 });
 export const updateProductSchema = z.object({
   categoryId: z.number().int().positive().optional(),
@@ -84,12 +118,43 @@ export const updateProductSchema = z.object({
   imageUrl: imageUrlSchema.optional(),
   stockCount: stockSchema.optional(),
   active: z.boolean().optional(),
+  modifierGroupIds: groupIdsSchema.optional(),
 });
 
 export const moveSchema = z.object({ direction: z.enum(["up", "down"]) });
 export const setStockSchema = z.object({ stockCount: stockSchema });
 
 export type Direction = z.infer<typeof moveSchema>["direction"];
+
+const modifierNameSchema = z.string().trim().min(1).max(60);
+const priceDeltaSchema = z.number().int().min(0).max(1_000_000);
+
+export const createModifierGroupSchema = z.object({
+  name: modifierNameSchema,
+  selectionType: z.enum(MODIFIER_SELECTION_TYPES),
+  required: z.boolean().default(false),
+});
+export const updateModifierGroupSchema = z.object({
+  name: modifierNameSchema.optional(),
+  selectionType: z.enum(MODIFIER_SELECTION_TYPES).optional(),
+  required: z.boolean().optional(),
+  active: z.boolean().optional(),
+});
+
+export const createModifierSchema = z.object({
+  groupId: z.number().int().positive(),
+  name: modifierNameSchema,
+  priceDeltaCents: priceDeltaSchema,
+});
+export const updateModifierSchema = z.object({
+  name: modifierNameSchema.optional(),
+  priceDeltaCents: priceDeltaSchema.optional(),
+  active: z.boolean().optional(),
+});
+
+export const setProductGroupsSchema = z.object({
+  groupIds: z.array(z.number().int().positive()).max(50),
+});
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -109,6 +174,22 @@ export function getAdminCatalog(): AdminCategory[] {
     .orderBy(asc(products.sortOrder), asc(products.name))
     .all();
 
+  const assignmentRows = db
+    .select({
+      productId: productModifierGroups.productId,
+      groupId: productModifierGroups.groupId,
+    })
+    .from(productModifierGroups)
+    .orderBy(asc(productModifierGroups.sortOrder))
+    .all();
+
+  const groupsByProduct = new Map<number, number[]>();
+  for (const row of assignmentRows) {
+    const list = groupsByProduct.get(row.productId) ?? [];
+    list.push(row.groupId);
+    groupsByProduct.set(row.productId, list);
+  }
+
   return categoryRows.map((category) => ({
     id: category.id,
     name: category.name,
@@ -125,6 +206,41 @@ export function getAdminCatalog(): AdminCategory[] {
         stockCount: product.stockCount,
         active: product.active,
         sortOrder: product.sortOrder,
+        modifierGroupIds: groupsByProduct.get(product.id) ?? [],
+      })),
+  }));
+}
+
+/** All modifier groups with their options (incl. inactive), for the admin manager. */
+export function getAdminModifierGroups(): AdminModifierGroup[] {
+  const groupRows = db
+    .select()
+    .from(modifierGroups)
+    .orderBy(asc(modifierGroups.sortOrder), asc(modifierGroups.name))
+    .all();
+
+  const modifierRows = db
+    .select()
+    .from(modifiers)
+    .orderBy(asc(modifiers.sortOrder), asc(modifiers.name))
+    .all();
+
+  return groupRows.map((group) => ({
+    id: group.id,
+    name: group.name,
+    selectionType: group.selectionType,
+    required: group.required,
+    active: group.active,
+    sortOrder: group.sortOrder,
+    modifiers: modifierRows
+      .filter((modifier) => modifier.groupId === group.id)
+      .map((modifier) => ({
+        id: modifier.id,
+        groupId: modifier.groupId,
+        name: modifier.name,
+        priceDeltaCents: modifier.priceDeltaCents,
+        active: modifier.active,
+        sortOrder: modifier.sortOrder,
       })),
   }));
 }
@@ -209,6 +325,9 @@ export function createProduct(input: z.infer<typeof createProductSchema>): { id:
       })
       .returning({ id: products.id })
       .all();
+    if (input.modifierGroupIds !== undefined) {
+      assignProductGroups(tx, row.id, input.modifierGroupIds);
+    }
     return { id: row.id };
   });
 }
@@ -246,6 +365,10 @@ export function updateProduct(id: number, input: z.infer<typeof updateProductSch
       changes.sortOrder = (next?.value ?? 0) + 1;
     }
 
+    if (input.modifierGroupIds !== undefined) {
+      assignProductGroups(tx, id, input.modifierGroupIds);
+    }
+
     if (Object.keys(changes).length === 0) return;
     tx.update(products).set(changes).where(eq(products.id, id)).run();
   });
@@ -278,6 +401,186 @@ export function moveProduct(id: number, direction: Direction): void {
       (rowId, sortOrder) =>
         tx.update(products).set({ sortOrder }).where(eq(products.id, rowId)).run(),
     );
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Modifier groups
+// ---------------------------------------------------------------------------
+
+export function createModifierGroup(
+  input: z.infer<typeof createModifierGroupSchema>,
+): { id: number } {
+  const next = db
+    .select({ value: sql<number>`coalesce(max(${modifierGroups.sortOrder}), 0)` })
+    .from(modifierGroups)
+    .get();
+  const [row] = db
+    .insert(modifierGroups)
+    .values({
+      name: input.name,
+      selectionType: input.selectionType,
+      required: input.required,
+      sortOrder: (next?.value ?? 0) + 1,
+    })
+    .returning({ id: modifierGroups.id })
+    .all();
+  return { id: row.id };
+}
+
+export function updateModifierGroup(
+  id: number,
+  input: z.infer<typeof updateModifierGroupSchema>,
+): void {
+  const changes: Partial<{
+    name: string;
+    selectionType: ModifierSelectionType;
+    required: boolean;
+    active: boolean;
+  }> = {};
+  if (input.name !== undefined) changes.name = input.name;
+  if (input.selectionType !== undefined) changes.selectionType = input.selectionType;
+  if (input.required !== undefined) changes.required = input.required;
+  if (input.active !== undefined) changes.active = input.active;
+  if (Object.keys(changes).length === 0) return;
+
+  const result = db
+    .update(modifierGroups)
+    .set(changes)
+    .where(eq(modifierGroups.id, id))
+    .run();
+  if (result.changes === 0) throw new AdminNotFoundError();
+}
+
+export function moveModifierGroup(id: number, direction: Direction): void {
+  db.transaction((tx) => {
+    const ordered = tx
+      .select({ id: modifierGroups.id })
+      .from(modifierGroups)
+      .orderBy(asc(modifierGroups.sortOrder), asc(modifierGroups.name))
+      .all();
+    reorder(
+      ordered.map((row) => row.id),
+      id,
+      direction,
+      (rowId, sortOrder) =>
+        tx.update(modifierGroups).set({ sortOrder }).where(eq(modifierGroups.id, rowId)).run(),
+    );
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Modifiers (options within a group)
+// ---------------------------------------------------------------------------
+
+function requireModifierGroup(tx: Tx, groupId: number): void {
+  const exists = tx
+    .select({ id: modifierGroups.id })
+    .from(modifierGroups)
+    .where(eq(modifierGroups.id, groupId))
+    .get();
+  if (!exists) throw new AdminValidationError("Optionsgruppe existiert nicht.");
+}
+
+export function createModifier(input: z.infer<typeof createModifierSchema>): { id: number } {
+  return db.transaction((tx) => {
+    requireModifierGroup(tx, input.groupId);
+    const next = tx
+      .select({ value: sql<number>`coalesce(max(${modifiers.sortOrder}), 0)` })
+      .from(modifiers)
+      .where(eq(modifiers.groupId, input.groupId))
+      .get();
+    const [row] = tx
+      .insert(modifiers)
+      .values({
+        groupId: input.groupId,
+        name: input.name,
+        priceDeltaCents: input.priceDeltaCents,
+        sortOrder: (next?.value ?? 0) + 1,
+      })
+      .returning({ id: modifiers.id })
+      .all();
+    return { id: row.id };
+  });
+}
+
+export function updateModifier(id: number, input: z.infer<typeof updateModifierSchema>): void {
+  const changes: Partial<{ name: string; priceDeltaCents: number; active: boolean }> = {};
+  if (input.name !== undefined) changes.name = input.name;
+  if (input.priceDeltaCents !== undefined) changes.priceDeltaCents = input.priceDeltaCents;
+  if (input.active !== undefined) changes.active = input.active;
+  if (Object.keys(changes).length === 0) return;
+
+  const result = db.update(modifiers).set(changes).where(eq(modifiers.id, id)).run();
+  if (result.changes === 0) throw new AdminNotFoundError();
+}
+
+export function moveModifier(id: number, direction: Direction): void {
+  db.transaction((tx) => {
+    const modifier = tx
+      .select({ groupId: modifiers.groupId })
+      .from(modifiers)
+      .where(eq(modifiers.id, id))
+      .get();
+    if (!modifier) throw new AdminNotFoundError();
+
+    const ordered = tx
+      .select({ id: modifiers.id })
+      .from(modifiers)
+      .where(eq(modifiers.groupId, modifier.groupId))
+      .orderBy(asc(modifiers.sortOrder), asc(modifiers.name))
+      .all();
+    reorder(
+      ordered.map((row) => row.id),
+      id,
+      direction,
+      (rowId, sortOrder) =>
+        tx.update(modifiers).set({ sortOrder }).where(eq(modifiers.id, rowId)).run(),
+    );
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Product ↔ group assignment
+// ---------------------------------------------------------------------------
+
+/**
+ * Replaces the set of groups assigned to a product (within an existing tx),
+ * preserving pick order. Validates that every group exists.
+ */
+function assignProductGroups(tx: Tx, productId: number, groupIds: number[]): void {
+  const uniqueIds = [...new Set(groupIds)];
+  if (uniqueIds.length > 0) {
+    const existing = tx
+      .select({ id: modifierGroups.id })
+      .from(modifierGroups)
+      .where(inArray(modifierGroups.id, uniqueIds))
+      .all();
+    if (existing.length !== uniqueIds.length) {
+      throw new AdminValidationError("Eine Optionsgruppe existiert nicht.");
+    }
+  }
+
+  tx.delete(productModifierGroups)
+    .where(eq(productModifierGroups.productId, productId))
+    .run();
+  if (uniqueIds.length > 0) {
+    tx.insert(productModifierGroups)
+      .values(uniqueIds.map((groupId, index) => ({ productId, groupId, sortOrder: index })))
+      .run();
+  }
+}
+
+/** Replaces the set of groups assigned to a product, preserving pick order. */
+export function setProductModifierGroups(productId: number, groupIds: number[]): void {
+  db.transaction((tx) => {
+    const product = tx
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.id, productId))
+      .get();
+    if (!product) throw new AdminNotFoundError();
+    assignProductGroups(tx, productId, groupIds);
   });
 }
 

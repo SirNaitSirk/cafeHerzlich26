@@ -13,7 +13,12 @@ import { ProductFormDialog, type ProductFormValues } from "@/components/admin/pr
 import { ProductImage } from "@/components/terminal/product-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { AdminCategory, AdminProduct, Direction } from "@/lib/admin-catalog";
+import type {
+  AdminCategory,
+  AdminModifierGroup,
+  AdminProduct,
+  Direction,
+} from "@/lib/admin-catalog";
 import { formatEuros } from "@/lib/format";
 import { adminMessages as t } from "@/lib/messages";
 import { cn } from "@/lib/utils";
@@ -28,9 +33,11 @@ export type ProductHandlers = {
 
 export function ProductManager({
   categories,
+  modifierGroups,
   handlers,
 }: {
   categories: AdminCategory[];
+  modifierGroups: AdminModifierGroup[];
   handlers: ProductHandlers;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -110,6 +117,7 @@ export function ProductManager({
         onOpenChange={setDialogOpen}
         product={editing}
         categories={categories}
+        modifierGroups={modifierGroups}
         defaultCategoryId={presetCategoryId}
         onSubmit={(values) =>
           editing ? handlers.onUpdate(editing.id, values) : handlers.onCreate(values)

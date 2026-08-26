@@ -75,6 +75,7 @@ export function OrderFlow({
             items: cart.lines.map((line) => ({
               productId: line.productId,
               quantity: line.quantity,
+              modifierIds: line.modifiers.map((mod) => mod.modifierId),
             })),
             guestName: name.trim() || undefined,
             paymentMethod: method,
