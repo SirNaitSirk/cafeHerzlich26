@@ -41,11 +41,13 @@ export function KasseDashboard({
   initialReadyOrders,
   catalog,
   paypalHandle,
+  cafeName,
 }: {
   initialCashOrders: OrderWithItems[];
   initialReadyOrders: OrderWithItems[];
   catalog: CatalogCategory[];
   paypalHandle: string | null;
+  cafeName: string;
 }) {
   const { orders: cashOrders, hasError: cashError } = useOrders("cash", initialCashOrders);
   const { orders: readyOrders, hasError: readyError } = useOrders("ready", initialReadyOrders);
@@ -66,6 +68,7 @@ export function KasseDashboard({
       <>
         <OrderFlow
           paypalHandle={paypalHandle}
+          cafeName={cafeName}
           initialCatalog={catalog}
           source="kasse"
           onExit={() => setOrdering(false)}

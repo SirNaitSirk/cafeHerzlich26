@@ -47,6 +47,9 @@ export const terminalMessages = {
     title: "Mit PayPal bezahlen",
     amountLabel: "Zu zahlen",
     instructions: "Scanne den QR-Code und zahle bitte über „Freunde & Familie“.",
+    friendsFamily: "Bitte „An Freunde & Familie“ senden — so fallen keine Gebühren an.",
+    referenceLabel: "Verwendungszweck",
+    referenceHint: "Bitte als Verwendungszweck angeben.",
     paid: "Ich habe bezahlt",
     back: "Zurück",
     unavailable: "PayPal ist derzeit nicht eingerichtet.",
@@ -357,8 +360,10 @@ export const adminMessages = {
     cafeName: "Café-Name",
     cafeNamePlaceholder: "Cafe Herzlich",
     paypalHandle: "PayPal-Handle",
-    paypalHandleHint: "Der Name aus paypal.me/<handle> für den QR-Code.",
+    paypalHandleHint:
+      "Nur der PayPal.Me-Benutzername (der Teil nach paypal.me/) — nicht der Café-Name. Beispiel: paypal.me/cafeherzlich → Eingabe: cafeherzlich.",
     paypalHandlePlaceholder: "cafeherzlich",
+    paypalHandleTest: "Handle testen ↗",
     saved: "Einstellungen gespeichert.",
   },
 } as const;

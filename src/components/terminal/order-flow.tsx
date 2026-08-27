@@ -32,12 +32,14 @@ type Step = "menu" | "cart" | "payment" | "paypal" | "success";
  */
 export function OrderFlow({
   paypalHandle,
+  cafeName,
   initialCatalog,
   source,
   onExit,
   onComplete,
 }: {
   paypalHandle: string | null;
+  cafeName: string;
   initialCatalog: CatalogCategory[];
   source: OrderSource;
   onExit: () => void;
@@ -161,6 +163,8 @@ export function OrderFlow({
           <PaypalScreen
             handle={paypalHandle}
             totalCents={cart.totalCents}
+            cafeName={cafeName}
+            guestName={name}
             submitting={submitting}
             onPaid={() => void submitOrder("paypal")}
             onBack={() => setStep("payment")}

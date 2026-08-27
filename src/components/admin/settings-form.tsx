@@ -67,6 +67,16 @@ export function SettingsForm({ initial }: { initial: Record<string, string> }) {
           className="h-11"
         />
         <p className="text-xs text-muted-foreground">{t.settings.paypalHandleHint}</p>
+        {paypalHandle.trim() && (
+          <a
+            href={`https://www.paypal.me/${encodeURIComponent(paypalHandle.trim())}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {t.settings.paypalHandleTest}
+          </a>
+        )}
       </div>
 
       <Button size="lg" className="h-11" onClick={handleSubmit} disabled={submitting}>

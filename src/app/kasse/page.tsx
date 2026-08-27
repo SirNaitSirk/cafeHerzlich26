@@ -18,6 +18,7 @@ export default function KassePage() {
       initialReadyOrders={readyOrders}
       catalog={catalog}
       paypalHandle={settings.paypal_handle ?? null}
+      cafeName={settings.cafe_name ?? "Cafe Herzlich"}
     />
   );
 }

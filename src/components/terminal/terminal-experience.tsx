@@ -43,6 +43,7 @@ export function TerminalExperience({
           {ordering ? (
             <OrderFlow
               paypalHandle={paypalHandle}
+              cafeName={cafeName}
               initialCatalog={initialCatalog}
               source="terminal"
               onExit={resetToWelcome}

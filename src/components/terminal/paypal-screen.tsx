@@ -8,27 +8,40 @@ import QRCode from "qrcode";
 import { formatEuros } from "@/lib/format";
 import { terminalMessages as t } from "@/lib/messages";
 
-/** Builds a PayPal.me link with the amount pre-filled (e.g. .../handle/6.40EUR). */
+/**
+ * Builds a PayPal.Me link with the amount pre-filled (e.g. paypal.me/handle/6.40).
+ * No currency suffix: the mobile PayPal app fails to parse `<amount>EUR` deep links
+ * (opens the profile without the amount), while the bare amount is picked up reliably
+ * and uses the account's default currency (EUR for a German account).
+ */
 function paypalUrl(handle: string, totalCents: number): string {
   const amount = (totalCents / 100).toFixed(2);
-  return `https://www.paypal.com/paypalme/${encodeURIComponent(handle)}/${amount}EUR`;
+  return `https://www.paypal.me/${encodeURIComponent(handle)}/${amount}`;
 }
 
 /** PayPal QR (amount pre-filled) + "Ich habe bezahlt". Order is persisted only on confirm. */
 export function PaypalScreen({
   handle,
   totalCents,
+  cafeName,
+  guestName,
   submitting,
   onPaid,
   onBack,
 }: {
   handle: string;
   totalCents: number;
+  cafeName: string;
+  guestName: string;
   submitting: boolean;
   onPaid: () => void;
   onBack: () => void;
 }) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  // Suggested payment reference the guest types into PayPal (display only —
+  // PayPal.Me cannot pre-fill a note). Falls back to just the café name.
+  const reference = guestName.trim() ? `${cafeName} – ${guestName.trim()}` : cafeName;
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +93,18 @@ export function PaypalScreen({
           </div>
           <div className="text-4xl font-bold text-stone-900">{formatEuros(totalCents)}</div>
         </div>
-        <p className="max-w-md text-stone-600">{t.paypal.instructions}</p>
+
+        <p className="max-w-md font-medium text-stone-700">{t.paypal.friendsFamily}</p>
+
+        <div className="w-full max-w-md">
+          <div className="text-sm uppercase tracking-wide text-stone-500">
+            {t.paypal.referenceLabel}
+          </div>
+          <div className="mt-1.5 rounded-2xl bg-stone-100 px-5 py-3 text-xl font-semibold text-stone-900">
+            {reference}
+          </div>
+          <p className="mt-1.5 text-sm text-stone-500">{t.paypal.referenceHint}</p>
+        </div>
       </div>
 
       <footer className="pt-4">
