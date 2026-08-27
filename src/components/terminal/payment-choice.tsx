@@ -54,23 +54,25 @@ export function PaymentChoice({
         {t.cart.total}: <span className="font-semibold text-stone-800">{formatEuros(totalCents)}</span>
       </p>
 
-      <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-2">
-        {options.map((option) => (
-          <motion.button
-            key={option.method}
-            type="button"
-            disabled={option.disabled}
-            whileTap={option.disabled ? undefined : { scale: 0.97 }}
-            onClick={() => onSelect(option.method)}
-            className="flex flex-col items-center justify-center gap-4 rounded-3xl border border-amber-100 bg-white p-8 text-center shadow-sm transition-shadow hover:shadow-md disabled:cursor-not-allowed disabled:opacity-45"
-          >
-            <span className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-amber-700">
-              <option.icon className="h-9 w-9" />
-            </span>
-            <span className="text-xl font-semibold text-stone-800">{option.label}</span>
-            <span className="text-sm text-stone-500">{option.hint}</span>
-          </motion.button>
-        ))}
+      <div className="flex flex-1 items-center">
+        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2">
+          {options.map((option) => (
+            <motion.button
+              key={option.method}
+              type="button"
+              disabled={option.disabled}
+              whileTap={option.disabled ? undefined : { scale: 0.97 }}
+              onClick={() => onSelect(option.method)}
+              className="flex aspect-square max-h-80 min-h-56 flex-col items-center justify-center gap-4 rounded-3xl border border-amber-100 bg-white p-8 text-center shadow-sm transition-shadow hover:shadow-md disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              <span className="flex h-20 w-20 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+                <option.icon className="h-9 w-9" />
+              </span>
+              <span className="text-xl font-semibold text-stone-800">{option.label}</span>
+              <span className="text-sm text-stone-500">{option.hint}</span>
+            </motion.button>
+          ))}
+        </div>
       </div>
     </div>
   );
