@@ -6,11 +6,20 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { adminMessages as t } from "@/lib/messages";
+import {
+  PICKUP_THEMES,
+  PICKUP_THEME_KEYS,
+  resolvePickupThemeKey,
+} from "@/lib/pickup-themes";
+import { cn } from "@/lib/utils";
 
-/** Café-wide settings editor: café name + PayPal handle for the QR. */
+/** Café-wide settings editor: café name + PayPal handle + pickup-monitor theme. */
 export function SettingsForm({ initial }: { initial: Record<string, string> }) {
   const [cafeName, setCafeName] = useState(initial.cafe_name ?? "");
   const [paypalHandle, setPaypalHandle] = useState(initial.paypal_handle ?? "");
+  const [pickupTheme, setPickupTheme] = useState(() =>
+    resolvePickupThemeKey(initial.pickup_theme),
+  );
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
@@ -22,6 +31,7 @@ export function SettingsForm({ initial }: { initial: Record<string, string> }) {
         body: JSON.stringify({
           cafe_name: cafeName.trim(),
           paypal_handle: paypalHandle.trim(),
+          pickup_theme: pickupTheme,
         }),
       });
       if (response.ok) {
@@ -77,6 +87,37 @@ export function SettingsForm({ initial }: { initial: Record<string, string> }) {
             {t.settings.paypalHandleTest}
           </a>
         )}
+      </div>
+
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">{t.settings.pickupTheme}</label>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {PICKUP_THEME_KEYS.map((key) => {
+            const theme = PICKUP_THEMES[key];
+            const selected = pickupTheme === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => setPickupTheme(key)}
+                className={cn(
+                  "flex items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm font-medium transition-colors",
+                  selected
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-input hover:bg-accent",
+                )}
+              >
+                <span
+                  className="size-4 shrink-0 rounded-full ring-1 ring-black/10"
+                  style={{ backgroundColor: theme.swatch }}
+                />
+                {theme.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">{t.settings.pickupThemeHint}</p>
       </div>
 
       <Button size="lg" className="h-11" onClick={handleSubmit} disabled={submitting}>

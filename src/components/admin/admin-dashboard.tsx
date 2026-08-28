@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import { CategoryManager, type CategoryHandlers } from "@/components/admin/category-manager";
 import { ModifierManager, type ModifierHandlers } from "@/components/admin/modifier-manager";
+import { OrderArchive } from "@/components/admin/order-archive";
 import { ProductManager, type ProductHandlers } from "@/components/admin/product-manager";
 import { SettingsForm } from "@/components/admin/settings-form";
 import { Button } from "@/components/ui/button";
@@ -19,25 +20,29 @@ import { cn } from "@/lib/utils";
 import type { ProductFormValues } from "@/components/admin/product-form-dialog";
 import type { ModifierFormValues } from "@/components/admin/modifier-form-dialog";
 import type { ModifierGroupFormValues } from "@/components/admin/modifier-group-form-dialog";
+import type { OrderWithItems } from "@/lib/orders";
 
-type Tab = "categories" | "products" | "modifiers" | "settings";
+type Tab = "categories" | "products" | "modifiers" | "settings" | "history";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "categories", label: t.tabs.categories },
   { id: "products", label: t.tabs.products },
   { id: "modifiers", label: t.tabs.modifiers },
   { id: "settings", label: t.tabs.settings },
+  { id: "history", label: t.tabs.history },
 ];
 
 export function AdminDashboard({
   initialCategories,
   initialModifierGroups,
   initialSettings,
+  initialArchive,
   showKasseLink = false,
 }: {
   initialCategories: AdminCategory[];
   initialModifierGroups: AdminModifierGroup[];
   initialSettings: Record<string, string>;
+  initialArchive: OrderWithItems[];
   showKasseLink?: boolean;
 }) {
   const { categories, hasError, refetch } = useAdminCatalog(initialCategories);
@@ -86,6 +91,8 @@ export function AdminDashboard({
         active
           ? mutate(`/api/admin/categories/${id}`, "PATCH", { action: "update", active: true }, t.categories.toasts.reactivated)
           : mutate(`/api/admin/categories/${id}`, "DELETE", undefined, t.categories.toasts.deactivated),
+      onDelete: (id) =>
+        mutate(`/api/admin/categories/${id}?permanent=true`, "DELETE", undefined, t.categories.toasts.deleted),
     }),
     [mutate],
   );
@@ -188,6 +195,7 @@ export function AdminDashboard({
           <ModifierManager groups={modifierGroups} handlers={modifierHandlers} />
         )}
         {tab === "settings" && <SettingsForm initial={initialSettings} />}
+        {tab === "history" && <OrderArchive initial={initialArchive} />}
       </main>
 
       <Toaster position="top-center" richColors />

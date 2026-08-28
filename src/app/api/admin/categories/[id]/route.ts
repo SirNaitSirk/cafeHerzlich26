@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
+  deleteCategory,
   moveCategory,
   moveSchema,
   updateCategory,
@@ -54,9 +55,13 @@ export async function PATCH(
   }
 }
 
-/** Soft-deletes a category: active → false. Broadcasts `catalog:changed`. */
+/**
+ * Deletes a category. Default is a SOFT delete (active → false). With
+ * `?permanent=true` it is a HARD delete — only allowed when the category has no
+ * products (enforced in `deleteCategory`). Broadcasts `catalog:changed`.
+ */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const id = parseId((await params).id);
@@ -64,8 +69,14 @@ export async function DELETE(
     return NextResponse.json({ error: "Ungültige Kategorie." }, { status: 400 });
   }
 
+  const permanent = new URL(request.url).searchParams.get("permanent") === "true";
+
   try {
-    updateCategory(id, { active: false });
+    if (permanent) {
+      deleteCategory(id);
+    } else {
+      updateCategory(id, { active: false });
+    }
     broadcast({ type: "catalog:changed" });
     return NextResponse.json({ ok: true });
   } catch (error) {

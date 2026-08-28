@@ -10,6 +10,7 @@ import type { Cart, CartModifier } from "@/hooks/use-cart";
 import type { CatalogCategory, CatalogProduct } from "@/lib/catalog";
 import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
+import { availableToAdd } from "@/lib/stock";
 
 /**
  * Menu step: left category rail, scrollable product grid, persistent cart bar.
@@ -32,16 +33,22 @@ export function MenuScreen({
   // The product whose options sheet is open (null = none).
   const [optionsProduct, setOptionsProduct] = useState<CatalogProduct | null>(null);
 
+  const availableFor = (product: CatalogProduct) =>
+    availableToAdd(product.stockCount, cart.quantityForProduct(product.id));
+
   const handleAdd = (product: CatalogProduct) => {
+    if (availableFor(product) <= 0) return;
     if (product.modifierGroups.length > 0) {
       setOptionsProduct(product);
     } else {
-      cart.add(product);
+      cart.add(product, [], 1, product.stockCount ?? undefined);
     }
   };
 
   const handleConfirmOptions = (modifiers: CartModifier[], quantity: number) => {
-    if (optionsProduct) cart.add(optionsProduct, modifiers, quantity);
+    if (optionsProduct) {
+      cart.add(optionsProduct, modifiers, quantity, optionsProduct.stockCount ?? undefined);
+    }
     setOptionsProduct(null);
   };
 
@@ -97,7 +104,12 @@ export function MenuScreen({
               {active && active.products.length > 0 ? (
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
                   {active.products.map((product) => (
-                    <ProductCard key={product.id} product={product} onAdd={handleAdd} />
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      available={availableFor(product)}
+                      onAdd={handleAdd}
+                    />
                   ))}
                 </div>
               ) : (
@@ -148,6 +160,7 @@ export function MenuScreen({
           <ProductOptionsSheet
             key={optionsProduct.id}
             product={optionsProduct}
+            available={availableFor(optionsProduct)}
             onConfirm={handleConfirmOptions}
             onCancel={() => setOptionsProduct(null)}
           />

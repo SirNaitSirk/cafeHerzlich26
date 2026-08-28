@@ -12,6 +12,7 @@ import {
   READY_STATUSES,
   createOrder,
   createOrderSchema,
+  listOrderArchive,
   listOrderHistory,
   listOrders,
 } from "@/lib/orders";
@@ -27,12 +28,14 @@ const SCOPE_STATUSES: Record<string, readonly OrderStatus[]> = {
   ready: READY_STATUSES,
 };
 
-const scopeSchema = z.enum(["kitchen", "pickup", "cash", "ready", "history"]);
+const scopeSchema = z.enum(["kitchen", "pickup", "cash", "ready", "history", "archive"]);
 
 /**
  * Lists orders for a staff surface. `?scope=kitchen` returns open kitchen orders
  * (with item snapshots), oldest first. `?scope=history` returns today's past
- * orders (done + deleted) for the kitchen history, newest first.
+ * orders (done + deleted) for the kitchen history, newest first. `?scope=archive`
+ * returns the permanent, all-days admin archive of every order that reached the
+ * kitchen, newest first.
  */
 export function GET(request: Request): NextResponse {
   const scope = new URL(request.url).searchParams.get("scope");
@@ -40,10 +43,14 @@ export function GET(request: Request): NextResponse {
   if (!parsed.success) {
     return NextResponse.json({ error: "Unbekannter Bereich." }, { status: 400 });
   }
-  const orders =
-    parsed.data === "history"
-      ? listOrderHistory()
-      : listOrders({ statuses: SCOPE_STATUSES[parsed.data] });
+  let orders;
+  if (parsed.data === "history") {
+    orders = listOrderHistory();
+  } else if (parsed.data === "archive") {
+    orders = listOrderArchive();
+  } else {
+    orders = listOrders({ statuses: SCOPE_STATUSES[parsed.data] });
+  }
   return NextResponse.json({ orders });
 }
 

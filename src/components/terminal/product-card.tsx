@@ -7,17 +7,26 @@ import { ProductImage } from "@/components/terminal/product-image";
 import type { CatalogProduct } from "@/lib/catalog";
 import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
+import { isLowStock } from "@/lib/stock";
 
-/** A single product tile. Greyed-out and unselectable when sold out (stockCount === 0). */
+/**
+ * A single product tile. Greyed-out and unselectable when sold out — either the
+ * product's tracked stock is 0 or the guest already holds all remaining units in
+ * the cart (`available === 0`). Shows a "Nur noch X" hint when stock runs low.
+ */
 export function ProductCard({
   product,
+  available,
   onAdd,
 }: {
   product: CatalogProduct;
+  /** Units still addable given tracked stock minus what's already in the cart. */
+  available: number;
   onAdd: (product: CatalogProduct) => void;
 }) {
   const t = useTerminalCopy();
-  const soldOut = product.stockCount === 0;
+  const soldOut = product.stockCount === 0 || available === 0;
+  const showRemaining = isLowStock(product.stockCount) && !soldOut;
 
   return (
     <motion.button
@@ -35,6 +44,11 @@ export function ProductCard({
               {t.menu.soldOut}
             </span>
           </div>
+        ) : null}
+        {showRemaining ? (
+          <span className="absolute right-2 top-2 rounded-full bg-amber-600/95 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+            {t.menu.remaining(available)}
+          </span>
         ) : null}
       </div>
 

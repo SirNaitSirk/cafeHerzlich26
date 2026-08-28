@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
 
 /** Café-wide setting keys the admin may edit. Central whitelist. */
-export const SETTING_KEYS = ["cafe_name", "paypal_handle"] as const;
+export const SETTING_KEYS = ["cafe_name", "paypal_handle", "pickup_theme"] as const;
 export type SettingKey = (typeof SETTING_KEYS)[number];
 
 export function isSettingKey(value: string): value is SettingKey {

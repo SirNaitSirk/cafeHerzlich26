@@ -6,21 +6,25 @@ import { CoffeeIcon, WifiOffIcon } from "lucide-react";
 
 import { PickupOrder } from "@/components/abholung/pickup-order";
 import { useOrders } from "@/hooks/use-orders";
+import { usePickupTheme } from "@/hooks/use-pickup-theme";
 import { pickupMessages as t } from "@/lib/messages";
 import type { OrderWithItems } from "@/lib/orders";
+import type { PickupThemeKey } from "@/lib/pickup-themes";
 import { cn } from "@/lib/utils";
 
 /** A single glanceable section (in-progress or ready). */
 function Section({
   heading,
   count,
-  accent,
+  headingClass,
+  countClass,
   className,
   children,
 }: {
   heading: string;
   count: string;
-  accent: "neutral" | "ready";
+  headingClass: string;
+  countClass: string;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -30,12 +34,17 @@ function Section({
         <h2
           className={cn(
             "text-[clamp(2rem,5vmin,4.5rem)] font-bold tracking-tight",
-            accent === "ready" ? "text-emerald-400" : "text-white/85",
+            headingClass,
           )}
         >
           {heading}
         </h2>
-        <span className="text-[clamp(1.1rem,2.4vmin,2.25rem)] font-medium tabular-nums text-white/45">
+        <span
+          className={cn(
+            "text-[clamp(1.1rem,2.4vmin,2.25rem)] font-medium tabular-nums",
+            countClass,
+          )}
+        >
           {count}
         </span>
       </header>
@@ -49,11 +58,14 @@ function Section({
 export function PickupBoard({
   cafeName,
   initialOrders,
+  initialThemeKey,
 }: {
   cafeName: string;
   initialOrders: OrderWithItems[];
+  initialThemeKey: PickupThemeKey;
 }) {
   const { orders, hasError } = useOrders("pickup", initialOrders);
+  const theme = usePickupTheme(initialThemeKey);
 
   // In progress: oldest first. Ready: newest-ready on top, so a fresh "ready"
   // pops to the top with its animation where a waiting guest will notice it.
@@ -72,11 +84,23 @@ export function PickupBoard({
   return (
     <MotionConfig reducedMotion="user">
       {/* Solid dark fill + generous safe-margins so nothing hugs the TV overscan edge. */}
-      <div className="flex h-dvh flex-col bg-neutral-950 p-[4vmin] text-white portrait:py-[5vmin]">
+      <div
+        className={cn(
+          "flex h-dvh flex-col p-[4vmin] transition-colors duration-500 portrait:py-[5vmin]",
+          theme.page,
+        )}
+      >
         <header className="mb-[3vmin] flex items-center justify-between gap-[2vmin]">
           <div className="flex items-center gap-[1.5vmin]">
-            <CoffeeIcon className="size-[clamp(2rem,4.5vmin,4rem)] text-primary" />
-            <h1 className="text-[clamp(1.75rem,4vmin,3.75rem)] font-bold tracking-tight">
+            <CoffeeIcon
+              className={cn("size-[clamp(2rem,4.5vmin,4rem)]", theme.icon)}
+            />
+            <h1
+              className={cn(
+                "text-[clamp(1.75rem,4vmin,3.75rem)] font-bold tracking-tight",
+                theme.title,
+              )}
+            >
               {cafeName}
             </h1>
           </div>
@@ -90,11 +114,18 @@ export function PickupBoard({
 
         {isEmpty ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-[2.5vmin] text-center">
-            <CoffeeIcon className="size-[clamp(5rem,14vmin,12rem)] text-white/15" />
+            <CoffeeIcon
+              className={cn("size-[clamp(5rem,14vmin,12rem)]", theme.emptyIcon)}
+            />
             <p className="text-[clamp(2rem,6vmin,5rem)] font-bold tracking-tight">
               {t.empty.title}
             </p>
-            <p className="max-w-[40ch] text-[clamp(1.1rem,2.8vmin,2.5rem)] text-white/45">
+            <p
+              className={cn(
+                "max-w-[40ch] text-[clamp(1.1rem,2.8vmin,2.5rem)]",
+                theme.emptyHint,
+              )}
+            >
               {t.empty.hint}
             </p>
           </div>
@@ -109,22 +140,34 @@ export function PickupBoard({
               <Section
                 heading={t.ready.heading}
                 count={t.ready.count(ready.length)}
-                accent="ready"
+                headingClass={theme.readyHeading}
+                countClass={theme.count}
                 // Ready first (top) in portrait; right column in landscape.
                 className="portrait:order-1 landscape:order-2"
               >
                 {ready.map((order) => (
-                  <PickupOrder key={order.id} order={order} variant="ready" />
+                  <PickupOrder
+                    key={order.id}
+                    order={order}
+                    variant="ready"
+                    theme={theme}
+                  />
                 ))}
               </Section>
               <Section
                 heading={t.inProgress.heading}
                 count={t.inProgress.count(inProgress.length)}
-                accent="neutral"
+                headingClass={theme.progressHeading}
+                countClass={theme.count}
                 className="portrait:order-2 landscape:order-1"
               >
                 {inProgress.map((order) => (
-                  <PickupOrder key={order.id} order={order} variant="progress" />
+                  <PickupOrder
+                    key={order.id}
+                    order={order}
+                    variant="progress"
+                    theme={theme}
+                  />
                 ))}
               </Section>
             </div>

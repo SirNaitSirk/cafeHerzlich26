@@ -5,6 +5,7 @@ import { CheckIcon } from "lucide-react";
 
 import { orderDisplayLabel } from "@/lib/order-label";
 import type { OrderWithItems } from "@/lib/orders";
+import type { PickupTheme } from "@/lib/pickup-themes";
 import { cn } from "@/lib/utils";
 
 /**
@@ -15,9 +16,11 @@ import { cn } from "@/lib/utils";
 export function PickupOrder({
   order,
   variant,
+  theme,
 }: {
   order: OrderWithItems;
   variant: "progress" | "ready";
+  theme: PickupTheme;
 }) {
   const isReady = variant === "ready";
 
@@ -31,13 +34,18 @@ export function PickupOrder({
       transition={{ type: "spring", stiffness: 320, damping: 30 }}
       className={cn(
         "flex items-center justify-between gap-[2vmin] rounded-2xl px-[3vmin] py-[2.2vmin] text-[clamp(2rem,5vmin,4.5rem)] font-semibold leading-none tracking-tight",
-        isReady
-          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
-          : "bg-white/[0.06] text-white ring-1 ring-white/15",
+        isReady ? theme.readyTile : theme.progressTile,
       )}
     >
       <span className="min-w-0 truncate">{orderDisplayLabel(order)}</span>
-      {isReady && <CheckIcon className="size-[clamp(1.75rem,4.5vmin,4rem)] shrink-0" />}
+      {isReady && (
+        <CheckIcon
+          className={cn(
+            "size-[clamp(1.75rem,4.5vmin,4rem)] shrink-0",
+            theme.readyTileIcon,
+          )}
+        />
+      )}
     </motion.li>
   );
 }

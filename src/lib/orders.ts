@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
@@ -403,6 +403,26 @@ export function listOrderHistory(): OrderWithItems[] {
         gte(orders.createdAt, startOfTodayMs()),
       ),
     )
+    .orderBy(desc(resolvedAt), desc(orders.id))
+    .all();
+
+  return hydrateOrders(orderRows);
+}
+
+/**
+ * Loads the permanent order archive: every order that ever reached the kitchen —
+ * i.e. was paid/collected (`paidConfirmedAt` is set) — across all days, newest
+ * first. Includes done, collected and deleted (cancelled) orders; never-paid,
+ * abandoned orders (awaiting_payment/awaiting_cash) are excluded. Read-only source
+ * of record for the admin dashboard; unlike `listOrderHistory` it is not bounded
+ * to today. Sort key is the moment the order reached its final state.
+ */
+export function listOrderArchive(): OrderWithItems[] {
+  const resolvedAt = sql`coalesce(${orders.cancelledAt}, ${orders.readyAt}, ${orders.paidConfirmedAt}, ${orders.createdAt})`;
+  const orderRows = db
+    .select()
+    .from(orders)
+    .where(isNotNull(orders.paidConfirmedAt))
     .orderBy(desc(resolvedAt), desc(orders.id))
     .all();
 

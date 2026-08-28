@@ -26,6 +26,7 @@ const terminalDe = {
     title: "Speisekarte",
     soldOut: "Ausverkauft",
     add: "Hinzufügen",
+    remaining: (count: number) => `Nur noch ${count}`,
     emptyCategory: "In dieser Kategorie gibt es aktuell nichts.",
     loading: "Speisekarte wird geladen …",
   },
@@ -37,6 +38,7 @@ const terminalDe = {
     cancel: "Abbrechen",
     less: "Weniger",
     more: "Mehr",
+    remaining: (count: number) => `Nur noch ${count} verfügbar`,
   },
   cart: {
     title: "Deine Bestellung",
@@ -48,6 +50,7 @@ const terminalDe = {
     continue: "Weiter zur Bezahlung",
     back: "Weiter einkaufen",
     total: "Summe",
+    maxReached: "Maximaler Bestand erreicht",
   },
   payment: {
     title: "Wie möchtest du bezahlen?",
@@ -99,6 +102,7 @@ const terminalRu: TerminalMessages = {
     title: "Меню",
     soldOut: "Распродано",
     add: "Добавить",
+    remaining: (count: number) => `Осталось ${count}`,
     emptyCategory: "В этой категории сейчас ничего нет.",
     loading: "Меню загружается …",
   },
@@ -110,6 +114,7 @@ const terminalRu: TerminalMessages = {
     cancel: "Отмена",
     less: "Меньше",
     more: "Больше",
+    remaining: (count: number) => `Доступно только ${count}`,
   },
   cart: {
     title: "Ваш заказ",
@@ -122,6 +127,7 @@ const terminalRu: TerminalMessages = {
     continue: "К оплате",
     back: "Продолжить покупки",
     total: "Итого",
+    maxReached: "Достигнут лимит наличия",
   },
   payment: {
     title: "Как вы хотите оплатить?",
@@ -327,6 +333,23 @@ export const adminMessages = {
     products: "Produkte",
     modifiers: "Optionen",
     settings: "Einstellungen",
+    history: "Bestellhistorie",
+  },
+  archive: {
+    title: "Bestellhistorie",
+    description: "Alle abkassierten Bestellungen – dauerhaft und nur zum Lesen.",
+    empty: "Noch keine Bestellungen in der Historie.",
+    connectionLost: "Verbindung unterbrochen – neuer Versuch läuft …",
+    total: "Summe",
+    badge: {
+      done: "Erledigt",
+      collected: "Abgeholt",
+      cancelled: "Gelöscht",
+    },
+    doneAt: (time: string) => `erledigt um ${time}`,
+    collectedAt: (time: string) => `abgeholt um ${time}`,
+    cancelledAt: (time: string) => `gelöscht um ${time}`,
+    paidAt: (time: string) => `bezahlt um ${time}`,
   },
   common: {
     save: "Speichern",
@@ -334,6 +357,7 @@ export const adminMessages = {
     edit: "Bearbeiten",
     deactivate: "Deaktivieren",
     reactivate: "Reaktivieren",
+    deleteForever: "Endgültig löschen",
     moveUp: "Nach oben",
     moveDown: "Nach unten",
     inactive: "Inaktiv",
@@ -346,6 +370,13 @@ export const adminMessages = {
     add: "Neue Kategorie",
     empty: "Noch keine Kategorien. Lege die erste an.",
     productCount: (count: number) => (count === 1 ? "1 Produkt" : `${count} Produkte`),
+    confirmDelete: {
+      title: "Kategorie endgültig löschen?",
+      description: (name: string) =>
+        `„${name}“ wird dauerhaft gelöscht. Das kann nicht rückgängig gemacht werden.`,
+      confirm: "Endgültig löschen",
+      cancel: "Abbrechen",
+    },
     form: {
       createTitle: "Neue Kategorie",
       editTitle: "Kategorie bearbeiten",
@@ -358,6 +389,7 @@ export const adminMessages = {
       updated: "Kategorie gespeichert.",
       deactivated: "Kategorie deaktiviert.",
       reactivated: "Kategorie reaktiviert.",
+      deleted: "Kategorie gelöscht.",
       moved: "Reihenfolge aktualisiert.",
     },
   },
@@ -464,6 +496,9 @@ export const adminMessages = {
       "Nur der PayPal.Me-Benutzername (der Teil nach paypal.me/) — nicht der Café-Name. Beispiel: paypal.me/cafeherzlich → Eingabe: cafeherzlich.",
     paypalHandlePlaceholder: "cafeherzlich",
     paypalHandleTest: "Handle testen ↗",
+    pickupTheme: "Abholmonitor-Design",
+    pickupThemeHint:
+      "Farbwelt des Abholmonitors (TV). Wird sofort auf allen Bildschirmen übernommen.",
     saved: "Einstellungen gespeichert.",
   },
 } as const;

@@ -272,6 +272,32 @@ export function updateCategory(id: number, input: z.infer<typeof updateCategoryS
   if (result.changes === 0) throw new AdminNotFoundError();
 }
 
+/**
+ * Permanently deletes a category — HARD delete, unlike the soft
+ * `updateCategory({ active: false })`. Only allowed when no product row
+ * references the category (active or inactive), so the `products.category_id`
+ * FK stays intact.
+ */
+export function deleteCategory(id: number): void {
+  db.transaction((tx) => {
+    const exists = tx
+      .select({ id: categories.id })
+      .from(categories)
+      .where(eq(categories.id, id))
+      .get();
+    if (!exists) throw new AdminNotFoundError();
+
+    const product = tx
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.categoryId, id))
+      .get();
+    if (product) throw new AdminValidationError("Kategorie enthält noch Produkte.");
+
+    tx.delete(categories).where(eq(categories.id, id)).run();
+  });
+}
+
 export function moveCategory(id: number, direction: Direction): void {
   db.transaction((tx) => {
     const ordered = tx

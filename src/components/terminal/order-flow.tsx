@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 
@@ -53,6 +53,18 @@ export function OrderFlow({
   const [lastOrder, setLastOrder] = useState<{ method: PaymentMethod; label: string } | null>(null);
   const cart = useCart();
   const t = useTerminalCopy();
+
+  // Live stock lookup for the cart's per-line "+" cap. Derived from the catalog
+  // so it tracks `catalog:changed` refetches without any frozen local state.
+  const stockByProduct = useMemo(() => {
+    const map = new Map<number, number | null>();
+    for (const category of categories) {
+      for (const product of category.products) {
+        map.set(product.id, product.stockCount);
+      }
+    }
+    return map;
+  }, [categories]);
 
   const refetchCatalog = useCallback(async () => {
     try {
@@ -153,6 +165,7 @@ export function OrderFlow({
         {step === "cart" && (
           <CartScreen
             cart={cart}
+            stockByProduct={stockByProduct}
             name={name}
             onNameChange={setName}
             onBack={() => setStep("menu")}

@@ -6,7 +6,7 @@ import { useEventStream } from "@/hooks/use-event-stream";
 import type { OrderWithItems } from "@/lib/orders";
 
 /** A surface scope understood by `GET /api/orders?scope=…`. */
-export type OrdersScope = "kitchen" | "pickup" | "cash" | "ready" | "history";
+export type OrdersScope = "kitchen" | "pickup" | "cash" | "ready" | "history" | "archive";
 
 type UseOrdersResult = {
   orders: OrderWithItems[];

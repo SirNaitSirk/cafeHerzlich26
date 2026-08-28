@@ -29,3 +29,30 @@ const timeFormatter = new Intl.DateTimeFormat("de-DE", {
 export function formatTime(ms: number): string {
   return timeFormatter.format(ms);
 }
+
+const dayFormatter = new Intl.DateTimeFormat("de-DE", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+/** Format an epoch-ms timestamp as a full German date, e.g. "Donnerstag, 28. August 2026". */
+export function formatDay(ms: number): string {
+  return dayFormatter.format(ms);
+}
+
+/**
+ * A stable per-calendar-day key (local time) for grouping timestamps, e.g.
+ * "2026-08-28". Uses the Swedish locale which renders ISO-style YYYY-MM-DD.
+ */
+const dayKeyFormatter = new Intl.DateTimeFormat("sv-SE", {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** Returns a "YYYY-MM-DD" local-day key for an epoch-ms timestamp. */
+export function dayKey(ms: number): string {
+  return dayKeyFormatter.format(ms);
+}

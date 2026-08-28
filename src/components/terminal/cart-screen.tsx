@@ -11,12 +11,15 @@ import { formatEuros } from "@/lib/format";
 /** Cart review: quantities, optional name, continue to payment. */
 export function CartScreen({
   cart,
+  stockByProduct,
   name,
   onNameChange,
   onBack,
   onContinue,
 }: {
   cart: Cart;
+  /** Tracked stock per product id (null = unlimited). Caps the per-line "+". */
+  stockByProduct: Map<number, number | null>;
   name: string;
   onNameChange: (value: string) => void;
   onBack: () => void;
@@ -41,7 +44,11 @@ export function CartScreen({
       <div className="min-h-0 flex-1 overflow-y-auto py-2">
         <ul className="flex flex-col gap-3">
           <AnimatePresence initial={false}>
-            {cart.lines.map((line) => (
+            {cart.lines.map((line) => {
+              const stock = stockByProduct.get(line.productId) ?? null;
+              // Product-wide count across all its variants caps the "+".
+              const atStockLimit = stock !== null && cart.quantityForProduct(line.productId) >= stock;
+              return (
               <motion.li
                 key={line.lineId}
                 layout
@@ -62,6 +69,9 @@ export function CartScreen({
                     </ul>
                   ) : null}
                   <div className="text-sm text-amber-700">{formatEuros(line.priceCents)}</div>
+                  {atStockLimit ? (
+                    <div className="mt-0.5 text-xs font-medium text-amber-700">{t.cart.maxReached}</div>
+                  ) : null}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -78,8 +88,9 @@ export function CartScreen({
                   </span>
                   <button
                     type="button"
-                    onClick={() => cart.setQuantity(line.lineId, line.quantity + 1)}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-600 text-white"
+                    onClick={() => cart.setQuantity(line.lineId, line.quantity + 1, stock ?? undefined)}
+                    disabled={atStockLimit}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-600 text-white disabled:opacity-40"
                     aria-label={t.menu.add}
                   >
                     <Plus className="h-5 w-5" />
@@ -90,7 +101,8 @@ export function CartScreen({
                   {formatEuros(line.priceCents * line.quantity)}
                 </div>
               </motion.li>
-            ))}
+              );
+            })}
           </AnimatePresence>
         </ul>
 

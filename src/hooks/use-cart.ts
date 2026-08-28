@@ -26,10 +26,17 @@ export type Cart = {
   lines: CartLine[];
   itemCount: number;
   totalCents: number;
-  add: (product: CatalogProduct, modifiers?: CartModifier[], quantity?: number) => void;
-  setQuantity: (lineId: string, quantity: number) => void;
+  /**
+   * Adds units. `max`, when given, caps the resulting **product-wide** quantity
+   * (summed across all modifier variants of the same product).
+   */
+  add: (product: CatalogProduct, modifiers?: CartModifier[], quantity?: number, max?: number) => void;
+  /** Sets a line's quantity. `max` caps the resulting product-wide quantity. */
+  setQuantity: (lineId: string, quantity: number, max?: number) => void;
   remove: (lineId: string) => void;
   clear: () => void;
+  /** Total quantity of a product across all its cart lines (all modifier variants). */
+  quantityForProduct: (productId: number) => number;
 };
 
 /** Builds the stable line identity from a product and its chosen modifier ids. */
@@ -43,16 +50,24 @@ export function useCart(): Cart {
   const [lines, setLines] = useState<CartLine[]>([]);
 
   const add = useCallback(
-    (product: CatalogProduct, modifiers: CartModifier[] = [], quantity = 1) => {
+    (product: CatalogProduct, modifiers: CartModifier[] = [], quantity = 1, max?: number) => {
       const amount = Math.max(1, Math.floor(quantity));
       const deltaSum = modifiers.reduce((sum, mod) => sum + mod.priceDeltaCents, 0);
       const lineId = makeLineId(product.id, modifiers);
 
       setLines((current) => {
         const existing = current.find((line) => line.lineId === lineId);
+        // Cap against the product-wide total already in the cart.
+        const productTotal = current
+          .filter((line) => line.productId === product.id)
+          .reduce((sum, line) => sum + line.quantity, 0);
+        const headroom = max === undefined ? amount : Math.max(0, max - productTotal);
+        const grant = Math.min(amount, headroom);
+        if (grant <= 0) return current;
+
         if (existing) {
           return current.map((line) =>
-            line.lineId === lineId ? { ...line, quantity: line.quantity + amount } : line,
+            line.lineId === lineId ? { ...line, quantity: line.quantity + grant } : line,
           );
         }
         return [
@@ -62,7 +77,7 @@ export function useCart(): Cart {
             productId: product.id,
             name: product.name,
             priceCents: product.priceCents + deltaSum,
-            quantity: amount,
+            quantity: grant,
             modifiers,
           },
         ];
@@ -71,14 +86,20 @@ export function useCart(): Cart {
     [],
   );
 
-  const setQuantity = useCallback((lineId: string, quantity: number) => {
-    setLines((current) =>
-      quantity <= 0
-        ? current.filter((line) => line.lineId !== lineId)
-        : current.map((line) =>
-            line.lineId === lineId ? { ...line, quantity } : line,
-          ),
-    );
+  const setQuantity = useCallback((lineId: string, quantity: number, max?: number) => {
+    setLines((current) => {
+      if (quantity <= 0) return current.filter((line) => line.lineId !== lineId);
+      const target = current.find((line) => line.lineId === lineId);
+      if (!target) return current;
+      // Cap against the product-wide total from this product's other lines.
+      const otherLines = current
+        .filter((line) => line.productId === target.productId && line.lineId !== lineId)
+        .reduce((sum, line) => sum + line.quantity, 0);
+      const capped = max === undefined ? quantity : Math.min(quantity, Math.max(1, max - otherLines));
+      return current.map((line) =>
+        line.lineId === lineId ? { ...line, quantity: capped } : line,
+      );
+    });
   }, []);
 
   const remove = useCallback((lineId: string) => {
@@ -86,6 +107,14 @@ export function useCart(): Cart {
   }, []);
 
   const clear = useCallback(() => setLines([]), []);
+
+  const quantityForProduct = useCallback(
+    (productId: number) =>
+      lines
+        .filter((line) => line.productId === productId)
+        .reduce((sum, line) => sum + line.quantity, 0),
+    [lines],
+  );
 
   const { itemCount, totalCents } = useMemo(() => {
     return lines.reduce(
@@ -97,7 +126,7 @@ export function useCart(): Cart {
     );
   }, [lines]);
 
-  return { lines, itemCount, totalCents, add, setQuantity, remove, clear };
+  return { lines, itemCount, totalCents, add, setQuantity, remove, clear, quantityForProduct };
 }
 
 /** Maps a chosen catalog option to the cart's modifier shape. */

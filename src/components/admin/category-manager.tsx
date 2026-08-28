@@ -1,11 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDownIcon, ChevronUpIcon, PencilIcon, PlusIcon } from "lucide-react";
+import { ChevronDownIcon, ChevronUpIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 
 import { CategoryFormDialog } from "@/components/admin/category-form-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { AdminCategory, Direction } from "@/lib/admin-catalog";
 import { adminMessages as t } from "@/lib/messages";
 import { cn } from "@/lib/utils";
@@ -15,6 +23,7 @@ export type CategoryHandlers = {
   onRename: (id: number, name: string) => Promise<boolean>;
   onMove: (id: number, direction: Direction) => Promise<boolean>;
   onToggleActive: (id: number, active: boolean) => Promise<boolean>;
+  onDelete: (id: number) => Promise<boolean>;
 };
 
 export function CategoryManager({
@@ -26,6 +35,8 @@ export function CategoryManager({
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminCategory | null>(null);
+  const [deleting, setDeleting] = useState<AdminCategory | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
 
   function openCreate() {
     setEditing(null);
@@ -35,6 +46,14 @@ export function CategoryManager({
   function openEdit(category: AdminCategory) {
     setEditing(category);
     setDialogOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    setDeletePending(true);
+    const ok = await handlers.onDelete(deleting.id);
+    setDeletePending(false);
+    if (ok) setDeleting(null);
   }
 
   return (
@@ -119,6 +138,17 @@ export function CategoryManager({
                   {t.common.reactivate}
                 </Button>
               )}
+              {category.products.length === 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-10 text-destructive hover:text-destructive"
+                  onClick={() => setDeleting(category)}
+                >
+                  <Trash2Icon className="size-4" />
+                  {t.common.deleteForever}
+                </Button>
+              )}
             </li>
           ))}
         </ul>
@@ -132,6 +162,29 @@ export function CategoryManager({
           editing ? handlers.onRename(editing.id, name) : handlers.onCreate(name)
         }
       />
+
+      <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.categories.confirmDelete.title}</DialogTitle>
+            <DialogDescription>
+              {deleting && t.categories.confirmDelete.description(deleting.name)}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleting(null)}
+              disabled={deletePending}
+            >
+              {t.categories.confirmDelete.cancel}
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deletePending}>
+              {t.categories.confirmDelete.confirm}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

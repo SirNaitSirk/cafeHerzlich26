@@ -9,6 +9,7 @@ import { toCartModifier } from "@/hooks/use-cart";
 import type { CatalogModifierGroup, CatalogProduct } from "@/lib/catalog";
 import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
+import { isLowStock } from "@/lib/stock";
 
 /**
  * Full-screen options step for a product with modifier groups. `single` groups
@@ -17,10 +18,13 @@ import { formatEuros } from "@/lib/format";
  */
 export function ProductOptionsSheet({
   product,
+  available,
   onConfirm,
   onCancel,
 }: {
   product: CatalogProduct;
+  /** Units still addable for this product given tracked stock minus the cart. */
+  available: number;
   onConfirm: (modifiers: CartModifier[], quantity: number) => void;
   onCancel: () => void;
 }) {
@@ -28,7 +32,9 @@ export function ProductOptionsSheet({
   // Selected option ids per group id.
   const [selected, setSelected] = useState<Record<number, number[]>>({});
   const [quantity, setQuantity] = useState(1);
-  const MAX_QUANTITY = 99;
+  // Effective ceiling: a hard cap, further limited by remaining stock.
+  const maxQuantity = Math.min(99, available);
+  const showRemaining = isLowStock(product.stockCount) && available > 0;
 
   const toggle = (group: CatalogModifierGroup, modifierId: number) => {
     setSelected((current) => {
@@ -158,6 +164,12 @@ export function ProductOptionsSheet({
           })}
         </div>
 
+        {showRemaining ? (
+          <p className="px-6 pb-1 text-sm font-medium text-amber-700">
+            {t.options.remaining(available)}
+          </p>
+        ) : null}
+
         <footer className="flex items-center gap-3 border-t border-amber-100 bg-amber-50 p-4">
           <div className="flex shrink-0 items-center gap-1 rounded-full bg-white p-1 shadow-sm">
             <button
@@ -174,8 +186,8 @@ export function ProductOptionsSheet({
             </span>
             <button
               type="button"
-              onClick={() => setQuantity((value) => Math.min(MAX_QUANTITY, value + 1))}
-              disabled={quantity >= MAX_QUANTITY}
+              onClick={() => setQuantity((value) => Math.min(maxQuantity, value + 1))}
+              disabled={quantity >= maxQuantity}
               className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-600 text-white disabled:opacity-40"
               aria-label={t.options.more}
             >
@@ -185,7 +197,7 @@ export function ProductOptionsSheet({
           <button
             type="button"
             onClick={() => onConfirm(chosen, quantity)}
-            disabled={missingRequired}
+            disabled={missingRequired || available <= 0}
             className="flex min-w-0 flex-1 items-center justify-between gap-4 rounded-full bg-amber-600 px-6 py-5 text-lg font-semibold text-white shadow-lg disabled:opacity-50"
           >
             <span>{t.options.add}</span>

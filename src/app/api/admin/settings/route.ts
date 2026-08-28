@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { broadcast } from "@/lib/events";
+import { PICKUP_THEME_KEYS } from "@/lib/pickup-themes";
 import { getSettings, setSettings } from "@/lib/settings";
 
 export const runtime = "nodejs";
@@ -16,6 +17,7 @@ const patchSchema = z.object({
     // paypal.me handles are alphanumeric; keep it simple and safe for the QR link.
     .regex(/^[a-zA-Z0-9]*$/, "Ungültiger PayPal-Handle.")
     .optional(),
+  pickup_theme: z.enum(PICKUP_THEME_KEYS).optional(),
 });
 
 /** Current café settings as a key/value map. */
@@ -23,7 +25,7 @@ export function GET(): NextResponse {
   return NextResponse.json({ settings: getSettings() });
 }
 
-/** Updates café settings (cafe_name, paypal_handle). Broadcasts `catalog:changed`. */
+/** Updates café settings (cafe_name, paypal_handle, pickup_theme). Broadcasts `catalog:changed`. */
 export async function PATCH(request: Request): Promise<NextResponse> {
   let body: unknown;
   try {
