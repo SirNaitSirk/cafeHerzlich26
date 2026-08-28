@@ -10,9 +10,13 @@ export default function AbholungPage() {
   const settings = getSettings();
 
   return (
-    <PickupBoard
-      cafeName={settings.cafe_name ?? "Cafe Herzlich"}
-      initialOrders={orders}
-    />
+    // Public TV surface on a matte Samsung Frame panel: force a fixed dark,
+    // high-contrast presentation regardless of the ambient theme.
+    <div className="dark">
+      <PickupBoard
+        cafeName={settings.cafe_name ?? "Cafe Herzlich"}
+        initialOrders={orders}
+      />
+    </div>
   );
 }

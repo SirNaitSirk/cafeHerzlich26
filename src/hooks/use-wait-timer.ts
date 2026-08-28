@@ -10,10 +10,14 @@ import { formatElapsed, waitLevel, type WaitLevel } from "@/lib/wait";
  * string and an urgency level for color escalation.
  */
 export function useWaitTimer(startMs: number): { label: string; level: WaitLevel } {
-  const [now, setNow] = useState(() => Date.now());
+  // Start deterministic (elapsed 0) so SSR and the first client render match;
+  // the effect below only runs on the client and switches to real elapsed time.
+  const [now, setNow] = useState(startMs);
 
   useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
+    const tick = () => setNow(Date.now());
+    tick(); // jump to the real elapsed time immediately after mount
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, []);
 

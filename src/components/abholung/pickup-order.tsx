@@ -30,14 +30,14 @@ export function PickupOrder({
       exit={{ opacity: 0, scale: 0.9, transition: { duration: 0.2 } }}
       transition={{ type: "spring", stiffness: 320, damping: 30 }}
       className={cn(
-        "flex items-center justify-between gap-4 rounded-2xl px-6 py-5 text-[clamp(1.75rem,3.2vw,3rem)] font-semibold leading-none tracking-tight",
+        "flex items-center justify-between gap-[2vmin] rounded-2xl px-[3vmin] py-[2.2vmin] text-[clamp(2rem,5vmin,4.5rem)] font-semibold leading-none tracking-tight",
         isReady
-          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 dark:bg-emerald-600"
-          : "bg-card text-card-foreground ring-1 ring-border",
+          ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/30"
+          : "bg-white/[0.06] text-white ring-1 ring-white/15",
       )}
     >
       <span className="min-w-0 truncate">{orderDisplayLabel(order)}</span>
-      {isReady && <CheckIcon className="size-[clamp(1.75rem,3vw,2.75rem)] shrink-0" />}
+      {isReady && <CheckIcon className="size-[clamp(1.75rem,4.5vmin,4rem)] shrink-0" />}
     </motion.li>
   );
 }

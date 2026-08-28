@@ -7,7 +7,9 @@ import { OrderFlow } from "@/components/terminal/order-flow";
 import { WelcomeScreen } from "@/components/terminal/welcome-screen";
 import { Toaster } from "@/components/ui/sonner";
 import { useIdleTimeout } from "@/hooks/use-idle-timeout";
+import { useTerminalLocale } from "@/hooks/use-terminal-language";
 import type { CatalogCategory } from "@/lib/catalog";
+import { DEFAULT_TERMINAL_LOCALE } from "@/lib/terminal-locale";
 
 /**
  * The public guest terminal: a full-screen welcome/attract screen that, once
@@ -24,8 +26,14 @@ export function TerminalExperience({
   initialCatalog: CatalogCategory[];
 }) {
   const [ordering, setOrdering] = useState(false);
+  const { setLocale } = useTerminalLocale();
 
-  const resetToWelcome = useCallback(() => setOrdering(false), []);
+  // Returning to the attract screen (idle, cancel, or completed order) resets the
+  // language to the default so the next guest starts in German.
+  const resetToWelcome = useCallback(() => {
+    setOrdering(false);
+    setLocale(DEFAULT_TERMINAL_LOCALE);
+  }, [setLocale]);
 
   useIdleTimeout(resetToWelcome, { enabled: ordering });
 

@@ -1,8 +1,22 @@
+import type { TerminalLocale } from "@/lib/terminal-locale";
+
 /**
- * Central German UI copy for the terminal. Single source of truth — no hardcoded
- * strings scattered across components. UI is 100% German; code stays English.
+ * Russian pluralization: picks the form for a count. Russian has three forms —
+ * one (1, 21, 31 …), few (2–4, 22–24 …) and many (0, 5–20, 11–14 …).
  */
-export const terminalMessages = {
+function pluralRu(count: number, forms: [one: string, few: string, many: string]): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return forms[0];
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return forms[1];
+  return forms[2];
+}
+
+/**
+ * Terminal UI copy in German — the default and single source of truth for the
+ * shape of the message tree. UI is 100% localized; code stays English.
+ */
+const terminalDe = {
   welcome: {
     tagline: "Herzlich willkommen",
     cta: "Jetzt bestellen",
@@ -65,7 +79,93 @@ export const terminalMessages = {
     stock: "Leider ist ein Artikel nicht mehr verfügbar.",
     generic: "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
   },
-} as const;
+};
+
+/** The message tree shape every locale must satisfy. */
+export type TerminalMessages = typeof terminalDe;
+
+/**
+ * Terminal UI copy in Russian. Structurally identical to `terminalDe` (enforced
+ * by the `TerminalMessages` type). Only the terminal chrome is translated —
+ * product, category and option names stay German (they come from the DB).
+ */
+const terminalRu: TerminalMessages = {
+  welcome: {
+    tagline: "Добро пожаловать",
+    cta: "Сделать заказ",
+    hint: "Коснитесь, чтобы начать",
+  },
+  menu: {
+    title: "Меню",
+    soldOut: "Распродано",
+    add: "Добавить",
+    emptyCategory: "В этой категории сейчас ничего нет.",
+    loading: "Меню загружается …",
+  },
+  options: {
+    title: "Выберите опции",
+    required: "Обязательно",
+    requiredHint: "Пожалуйста, сделайте выбор.",
+    add: "Добавить",
+    cancel: "Отмена",
+    less: "Меньше",
+    more: "Больше",
+  },
+  cart: {
+    title: "Ваш заказ",
+    empty: "Ваша корзина пуста.",
+    itemsLabel: (count: number) =>
+      `${count} ${pluralRu(count, ["товар", "товара", "товаров"])}`,
+    namePlaceholder: "Ваше имя (необязательно)",
+    nameHint: "Имя появится на экране выдачи.",
+    remove: "Удалить",
+    continue: "К оплате",
+    back: "Продолжить покупки",
+    total: "Итого",
+  },
+  payment: {
+    title: "Как вы хотите оплатить?",
+    cash: "Оплатить наличными",
+    cashHint: "Оплата на кассе",
+    paypal: "Оплатить через PayPal",
+    paypalHint: "Друзья и семья",
+    back: "Назад",
+  },
+  paypal: {
+    title: "Оплата через PayPal",
+    amountLabel: "К оплате",
+    instructions: "Отсканируйте QR-код и оплатите через «Друзьям и семье».",
+    friendsFamily: "Пожалуйста, отправьте «Друзьям и семье» — так не будет комиссии.",
+    referenceLabel: "Назначение платежа",
+    referenceHint: "Пожалуйста, укажите как назначение платежа.",
+    paid: "Я оплатил(а)",
+    back: "Назад",
+    unavailable: "PayPal сейчас не настроен.",
+  },
+  success: {
+    title: "Большое спасибо!",
+    cashInfo: "Пожалуйста, оплатите заказ на кассе.",
+    paypalInfo: "Ваш заказ передан на кухню.",
+    orderLabel: (value: string) => `Ваш заказ: ${value}`,
+    autoReturn: "Возврат на главный экран …",
+  },
+  errors: {
+    stock: "К сожалению, один из товаров больше недоступен.",
+    generic: "Что-то пошло не так. Пожалуйста, попробуйте ещё раз.",
+  },
+};
+
+/** Terminal copy by locale. */
+export const terminalMessagesByLocale: Record<TerminalLocale, TerminalMessages> = {
+  de: terminalDe,
+  ru: terminalRu,
+};
+
+/**
+ * German terminal copy. Kept as the default export used by staff surfaces (e.g.
+ * the Kasse, which mounts the same OrderFlow but always stays German).
+ */
+export const terminalMessages = terminalDe;
 
 /**
  * German UI copy for the kitchen monitor (staff). Single source of truth —

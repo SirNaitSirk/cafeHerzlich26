@@ -7,8 +7,8 @@ import { Check, Minus, Plus, X } from "lucide-react";
 import type { CartModifier } from "@/hooks/use-cart";
 import { toCartModifier } from "@/hooks/use-cart";
 import type { CatalogModifierGroup, CatalogProduct } from "@/lib/catalog";
+import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
-import { terminalMessages as t } from "@/lib/messages";
 
 /**
  * Full-screen options step for a product with modifier groups. `single` groups
@@ -24,6 +24,7 @@ export function ProductOptionsSheet({
   onConfirm: (modifiers: CartModifier[], quantity: number) => void;
   onCancel: () => void;
 }) {
+  const t = useTerminalCopy();
   // Selected option ids per group id.
   const [selected, setSelected] = useState<Record<number, number[]>>({});
   const [quantity, setQuantity] = useState(1);

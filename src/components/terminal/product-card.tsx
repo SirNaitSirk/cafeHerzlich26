@@ -5,8 +5,8 @@ import { Plus } from "lucide-react";
 
 import { ProductImage } from "@/components/terminal/product-image";
 import type { CatalogProduct } from "@/lib/catalog";
+import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
-import { terminalMessages as t } from "@/lib/messages";
 
 /** A single product tile. Greyed-out and unselectable when sold out (stockCount === 0). */
 export function ProductCard({
@@ -16,6 +16,7 @@ export function ProductCard({
   product: CatalogProduct;
   onAdd: (product: CatalogProduct) => void;
 }) {
+  const t = useTerminalCopy();
   const soldOut = product.stockCount === 0;
 
   return (

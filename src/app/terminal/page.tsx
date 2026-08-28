@@ -1,4 +1,5 @@
 import { TerminalExperience } from "@/components/terminal/terminal-experience";
+import { TerminalLanguageProvider } from "@/hooks/use-terminal-language";
 import { getCatalog } from "@/lib/catalog";
 import { getSettings } from "@/lib/settings";
 
@@ -10,10 +11,12 @@ export default function TerminalPage() {
   const settings = getSettings();
 
   return (
-    <TerminalExperience
-      cafeName={settings.cafe_name ?? "Cafe Herzlich"}
-      paypalHandle={settings.paypal_handle ?? null}
-      initialCatalog={catalog}
-    />
+    <TerminalLanguageProvider>
+      <TerminalExperience
+        cafeName={settings.cafe_name ?? "Cafe Herzlich"}
+        paypalHandle={settings.paypal_handle ?? null}
+        initialCatalog={catalog}
+      />
+    </TerminalLanguageProvider>
   );
 }

@@ -5,15 +5,16 @@ import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 
 import { CartScreen } from "@/components/terminal/cart-screen";
+import { LanguageSwitcher } from "@/components/terminal/language-switcher";
 import { MenuScreen } from "@/components/terminal/menu-screen";
 import { PaymentChoice } from "@/components/terminal/payment-choice";
 import { PaypalScreen } from "@/components/terminal/paypal-screen";
 import { SuccessScreen } from "@/components/terminal/success-screen";
 import { useCart } from "@/hooks/use-cart";
 import { useEventStream } from "@/hooks/use-event-stream";
+import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import type { CatalogCategory } from "@/lib/catalog";
 import type { OrderSource, PaymentMethod } from "@/lib/db/schema";
-import { terminalMessages as t } from "@/lib/messages";
 import { orderDisplayLabel } from "@/lib/order-label";
 
 /** The steps of an order, from menu browsing to the confirmation screen. */
@@ -51,6 +52,7 @@ export function OrderFlow({
   const [submitting, setSubmitting] = useState(false);
   const [lastOrder, setLastOrder] = useState<{ method: PaymentMethod; label: string } | null>(null);
   const cart = useCart();
+  const t = useTerminalCopy();
 
   const refetchCatalog = useCallback(async () => {
     try {
@@ -110,7 +112,7 @@ export function OrderFlow({
         setSubmitting(false);
       }
     },
-    [cart, name, refetchCatalog, source, submitting],
+    [cart, name, refetchCatalog, source, submitting, t],
   );
 
   const handlePaymentSelect = useCallback(
@@ -125,15 +127,21 @@ export function OrderFlow({
   );
 
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={step}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        className="h-dvh w-full"
-      >
+    <div className="relative h-dvh w-full">
+      {/* Persistent language switch across every step. Hidden on the Kasse
+          (no language provider → single language → LanguageSwitcher renders null). */}
+      <div className="absolute right-6 top-6 z-50">
+        <LanguageSwitcher variant="compact" />
+      </div>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={step}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className="h-dvh w-full"
+        >
         {step === "menu" && (
           <MenuScreen
             categories={categories}
@@ -177,7 +185,8 @@ export function OrderFlow({
             onDone={onComplete}
           />
         )}
-      </motion.div>
-    </AnimatePresence>
+        </motion.div>
+      </AnimatePresence>
+    </div>
   );
 }

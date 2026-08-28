@@ -5,8 +5,8 @@ import { ChevronLeft, Minus, Plus, Trash2 } from "lucide-react";
 
 import { Input } from "@/components/ui/input";
 import type { Cart } from "@/hooks/use-cart";
+import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
-import { terminalMessages as t } from "@/lib/messages";
 
 /** Cart review: quantities, optional name, continue to payment. */
 export function CartScreen({
@@ -22,6 +22,8 @@ export function CartScreen({
   onBack: () => void;
   onContinue: () => void;
 }) {
+  const t = useTerminalCopy();
+
   return (
     <div className="mx-auto flex h-dvh w-full max-w-2xl flex-col px-4 py-4">
       <header className="flex items-center gap-3 pb-2">

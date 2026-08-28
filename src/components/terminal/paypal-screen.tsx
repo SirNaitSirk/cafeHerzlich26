@@ -5,8 +5,8 @@ import { motion } from "motion/react";
 import { ChevronLeft } from "lucide-react";
 import QRCode from "qrcode";
 
+import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
-import { terminalMessages as t } from "@/lib/messages";
 
 /**
  * Builds a PayPal.Me link with the amount pre-filled (e.g. paypal.me/handle/6.40).
@@ -37,6 +37,7 @@ export function PaypalScreen({
   onPaid: () => void;
   onBack: () => void;
 }) {
+  const t = useTerminalCopy();
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   // Suggested payment reference the guest types into PayPal (display only —

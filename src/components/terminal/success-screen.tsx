@@ -4,8 +4,8 @@ import { useEffect } from "react";
 import { motion } from "motion/react";
 import { Check } from "lucide-react";
 
+import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import type { PaymentMethod } from "@/lib/db/schema";
-import { terminalMessages as t } from "@/lib/messages";
 
 const AUTO_RETURN_MS = 6_000;
 
@@ -19,6 +19,7 @@ export function SuccessScreen({
   orderLabel: string;
   onDone: () => void;
 }) {
+  const t = useTerminalCopy();
   useEffect(() => {
     const timer = setTimeout(onDone, AUTO_RETURN_MS);
     return () => clearTimeout(timer);

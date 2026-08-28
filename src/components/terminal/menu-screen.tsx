@@ -8,8 +8,8 @@ import { ProductCard } from "@/components/terminal/product-card";
 import { ProductOptionsSheet } from "@/components/terminal/product-options-sheet";
 import type { Cart, CartModifier } from "@/hooks/use-cart";
 import type { CatalogCategory, CatalogProduct } from "@/lib/catalog";
+import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
-import { terminalMessages as t } from "@/lib/messages";
 
 /**
  * Menu step: left category rail, scrollable product grid, persistent cart bar.
@@ -26,6 +26,7 @@ export function MenuScreen({
   onCheckout: () => void;
   onCancel: () => void;
 }) {
+  const t = useTerminalCopy();
   const [activeId, setActiveId] = useState<number | null>(categories[0]?.id ?? null);
   const active = categories.find((category) => category.id === activeId) ?? categories[0];
   // The product whose options sheet is open (null = none).

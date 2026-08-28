@@ -4,8 +4,8 @@ import { motion } from "motion/react";
 import { Banknote, ChevronLeft, QrCode } from "lucide-react";
 
 import type { PaymentMethod } from "@/lib/db/schema";
+import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
-import { terminalMessages as t } from "@/lib/messages";
 
 /** Payment method choice: cash (→ Kasse) or PayPal (→ QR). */
 export function PaymentChoice({
@@ -19,6 +19,7 @@ export function PaymentChoice({
   onSelect: (method: PaymentMethod) => void;
   onBack: () => void;
 }) {
+  const t = useTerminalCopy();
   const options: {
     method: PaymentMethod;
     label: string;

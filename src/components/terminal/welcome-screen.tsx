@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { motion } from "motion/react";
 
-import { terminalMessages as t } from "@/lib/messages";
+import { LanguageSwitcher } from "@/components/terminal/language-switcher";
+import { useTerminalCopy } from "@/hooks/use-terminal-language";
 
 /** Idle attract/standby screen. Tapping anywhere starts an order. */
 export function WelcomeScreen({
@@ -13,15 +14,22 @@ export function WelcomeScreen({
   cafeName: string;
   onStart: () => void;
 }) {
+  const t = useTerminalCopy();
+
   return (
-    <motion.button
-      type="button"
-      onClick={onStart}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="relative flex h-dvh w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-stone-900 via-amber-950 to-stone-900 px-8 text-center"
-    >
+    <div className="relative h-dvh w-full">
+      {/* Language switch overlays the attract button (avoids nested buttons). */}
+      <div className="absolute right-6 top-6 z-20">
+        <LanguageSwitcher variant="full" />
+      </div>
+      <motion.button
+        type="button"
+        onClick={onStart}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="relative flex h-dvh w-full flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-stone-900 via-amber-950 to-stone-900 px-8 text-center"
+      >
       {/* Ambient floating glow */}
       <motion.div
         aria-hidden
@@ -61,6 +69,7 @@ export function WelcomeScreen({
         </motion.span>
         <p className="text-sm uppercase tracking-widest text-amber-100/75">{t.welcome.hint}</p>
       </motion.div>
-    </motion.button>
+      </motion.button>
+    </div>
   );
 }
