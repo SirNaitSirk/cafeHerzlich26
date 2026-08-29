@@ -292,6 +292,7 @@ export const kasseMessages = {
       exactHint: "Passend, kein Rückgeld",
       missing: "Es fehlen",
       quickExact: "Passend",
+      backspace: "Löschen",
       cancel: "Abbrechen",
     },
   },

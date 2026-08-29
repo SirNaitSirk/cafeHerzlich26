@@ -127,4 +127,36 @@
   html {
     @apply font-sans;
   }
+
+  /* Kiosk / native-app feel on the iPad: no rubber-band bounce, no double-tap
+     zoom, no tap highlight, no long-press callout or text selection. */
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+  body {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  /* Real inputs must stay usable: selection, caret and keyboard work normally. */
+  input,
+  textarea,
+  [contenteditable] {
+    user-select: text;
+    -webkit-user-select: text;
+    -webkit-touch-callout: default;
+  }
+}
+
+/* Opt-in padding for the notch / home indicator on full-screen kiosk surfaces. */
+@utility safe-area-inset {
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
 }

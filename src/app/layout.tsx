@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Montserrat } from "next/font/google";
 import "./globals.css";
 
@@ -16,6 +16,24 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Cafe Herzlich",
   description: "Bestell-Terminal Cafe Herzlich",
+  // iOS Safari only partially reads the web manifest for standalone launches,
+  // so these Apple meta tags are required for a chrome-free home-screen app.
+  appleWebApp: {
+    capable: true,
+    title: "Cafe Herzlich",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1c1917",
+  // Lock the viewport so the kiosk can't be zoomed; cover the notch/safe areas
+  // for an edge-to-edge, native-feeling full-screen experience.
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
