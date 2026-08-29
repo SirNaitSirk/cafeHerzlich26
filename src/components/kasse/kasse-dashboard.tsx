@@ -82,7 +82,7 @@ export function KasseDashboard({
   const hasError = cashError || readyError;
 
   return (
-    <div className="min-h-dvh bg-muted/30">
+    <div className="flex h-dvh flex-col bg-muted/30">
       <header className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b bg-background/90 px-6 py-4 backdrop-blur">
         <h1 className="text-2xl font-semibold tracking-tight">{t.title}</h1>
         <div className="flex items-center gap-3">
@@ -105,7 +105,7 @@ export function KasseDashboard({
         </div>
       </header>
 
-      <main className="grid grid-cols-1 gap-8 p-6 lg:grid-cols-2">
+      <main className="grid min-h-0 flex-1 grid-cols-1 gap-8 overflow-hidden p-6 lg:grid-cols-2">
         <section className="flex min-h-0 flex-col">
           <header className="mb-4 flex items-baseline justify-between gap-4">
             <h2 className="text-xl font-semibold tracking-tight">{t.cash.heading}</h2>
@@ -113,19 +113,21 @@ export function KasseDashboard({
               {t.cash.count(cashOrders.length)}
             </span>
           </header>
-          {cashOrders.length === 0 ? (
-            <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
-              {t.cash.empty}
-            </p>
-          ) : (
-            <ul className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <AnimatePresence mode="popLayout">
-                {cashOrders.map((order) => (
-                  <CashOrderCard key={order.id} order={order} onConfirm={confirmCash} />
-                ))}
-              </AnimatePresence>
-            </ul>
-          )}
+          <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
+            {cashOrders.length === 0 ? (
+              <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
+                {t.cash.empty}
+              </p>
+            ) : (
+              <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <AnimatePresence mode="popLayout">
+                  {cashOrders.map((order) => (
+                    <CashOrderCard key={order.id} order={order} onConfirm={confirmCash} />
+                  ))}
+                </AnimatePresence>
+              </ul>
+            )}
+          </div>
         </section>
 
         <section className="flex min-h-0 flex-col">
@@ -137,19 +139,21 @@ export function KasseDashboard({
               {t.ready.count(readyOrders.length)}
             </span>
           </header>
-          {readyOrders.length === 0 ? (
-            <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
-              {t.ready.empty}
-            </p>
-          ) : (
-            <ul className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-              <AnimatePresence mode="popLayout">
-                {readyOrders.map((order) => (
-                  <ReadyOrderCard key={order.id} order={order} onCollect={collect} />
-                ))}
-              </AnimatePresence>
-            </ul>
-          )}
+          <div className="-mr-2 min-h-0 flex-1 overflow-y-auto pr-2">
+            {readyOrders.length === 0 ? (
+              <p className="rounded-2xl border border-dashed p-8 text-center text-muted-foreground">
+                {t.ready.empty}
+              </p>
+            ) : (
+              <ul className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <AnimatePresence mode="popLayout">
+                  {readyOrders.map((order) => (
+                    <ReadyOrderCard key={order.id} order={order} onCollect={collect} />
+                  ))}
+                </AnimatePresence>
+              </ul>
+            )}
+          </div>
         </section>
       </main>
 
