@@ -128,7 +128,7 @@ export function CartScreen({
         <button
           type="button"
           onClick={onContinue}
-          disabled={cart.itemCount === 0}
+          disabled={cart.itemCount === 0 || name.trim().length === 0}
           className="w-full rounded-full bg-amber-600 py-5 text-lg font-semibold text-white shadow-lg disabled:opacity-50"
         >
           {t.cart.continue}
