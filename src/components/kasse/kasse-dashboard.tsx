@@ -3,8 +3,9 @@
 import { useCallback, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence } from "motion/react";
-import { PlusIcon, SlidersHorizontalIcon, WifiOffIcon } from "lucide-react";
+import { EyeOffIcon, PlusIcon, SlidersHorizontalIcon, WifiOffIcon } from "lucide-react";
 
+import { AvailabilityPanel } from "@/components/kasse/availability-panel";
 import { CashOrderCard } from "@/components/kasse/cash-order-card";
 import { ReadyOrderCard } from "@/components/kasse/ready-order-card";
 import { OrderFlow } from "@/components/terminal/order-flow";
@@ -52,6 +53,7 @@ export function KasseDashboard({
   const { orders: cashOrders, hasError: cashError } = useOrders("cash", initialCashOrders);
   const { orders: readyOrders, hasError: readyError } = useOrders("ready", initialReadyOrders);
   const [ordering, setOrdering] = useState(false);
+  const [managingAvailability, setManagingAvailability] = useState(false);
 
   const confirmCash = useCallback(
     (id: number) => patchOrder(id, "cash", t.toasts.cashSuccess),
@@ -79,6 +81,19 @@ export function KasseDashboard({
     );
   }
 
+  // The availability panel takes over the whole screen when active.
+  if (managingAvailability) {
+    return (
+      <>
+        <AvailabilityPanel
+          initialCatalog={catalog}
+          onExit={() => setManagingAvailability(false)}
+        />
+        <Toaster position="top-center" richColors />
+      </>
+    );
+  }
+
   const hasError = cashError || readyError;
 
   return (
@@ -92,6 +107,15 @@ export function KasseDashboard({
               {t.connectionLost}
             </span>
           )}
+          <Button
+            size="lg"
+            variant="outline"
+            className="h-12 text-base"
+            onClick={() => setManagingAvailability(true)}
+          >
+            <EyeOffIcon className="size-5" />
+            {t.availability.open}
+          </Button>
           <Button asChild size="lg" variant="outline" className="h-12 text-base">
             <Link href="/admin">
               <SlidersHorizontalIcon className="size-5" />

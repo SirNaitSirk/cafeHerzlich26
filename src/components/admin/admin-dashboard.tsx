@@ -111,6 +111,13 @@ export function AdminDashboard({
           : mutate(`/api/admin/products/${id}`, "DELETE", undefined, t.products.toasts.deactivated),
       onSetStock: (id, stockCount) =>
         mutate(`/api/admin/products/${id}`, "PATCH", { action: "stock", stockCount }, t.products.toasts.stock),
+      onSetSoldOut: (id, soldOut) =>
+        mutate(
+          `/api/admin/products/${id}`,
+          "PATCH",
+          { action: "availability", soldOut },
+          soldOut ? t.products.toasts.soldOut : t.products.toasts.available,
+        ),
     }),
     [mutate],
   );

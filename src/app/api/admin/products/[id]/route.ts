@@ -4,7 +4,9 @@ import { z } from "zod";
 import {
   moveProduct,
   moveSchema,
+  setProductSoldOut,
   setProductStock,
+  setSoldOutSchema,
   setStockSchema,
   updateProduct,
   updateProductSchema,
@@ -15,10 +17,11 @@ import { adminErrorResponse, parseId } from "@/app/api/admin/response";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** PATCH body: edit fields / toggle active, adjust stock, or reorder. */
+/** PATCH body: edit fields / toggle active, adjust stock, toggle availability, or reorder. */
 const patchSchema = z.discriminatedUnion("action", [
   updateProductSchema.extend({ action: z.literal("update") }),
   setStockSchema.extend({ action: z.literal("stock") }),
+  setSoldOutSchema.extend({ action: z.literal("availability") }),
   moveSchema.extend({ action: z.literal("move") }),
 ]);
 
@@ -49,6 +52,8 @@ export async function PATCH(
       moveProduct(id, parsed.data.direction);
     } else if (parsed.data.action === "stock") {
       setProductStock(id, parsed.data.stockCount);
+    } else if (parsed.data.action === "availability") {
+      setProductSoldOut(id, parsed.data.soldOut);
     } else {
       updateProduct(id, parsed.data);
     }

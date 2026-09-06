@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   // Allow LAN devices (iPads, TV, touchscreens) to load dev-only assets/HMR.
   // Next.js blocks cross-origin dev requests by default, which otherwise leaves
   // remote screens with unstyled HTML and blank client-navigated pages.
-  allowedDevOrigins: ["192.168.2.226"],
+  allowedDevOrigins: ['192.168.32.70'],
 };
 
 export default nextConfig;

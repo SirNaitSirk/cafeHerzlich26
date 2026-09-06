@@ -32,6 +32,12 @@ export const products = sqliteTable("products", {
   imageUrl: text("image_url"),
   /** Remaining stock. NULL = unlimited. 0 = greyed-out / unavailable on the terminal. */
   stockCount: integer("stock_count"),
+  /**
+   * Manual "sold out today" flag, independent of stockCount. When true the
+   * product greys out on the terminal until staff toggles it back — no
+   * counting, no auto-reset.
+   */
+  soldOut: integer("sold_out", { mode: "boolean" }).notNull().default(false),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at").notNull().default(now),

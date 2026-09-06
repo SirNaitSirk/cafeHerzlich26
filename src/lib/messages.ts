@@ -188,6 +188,12 @@ export const kitchenMessages = {
   },
   loading: "Bestellungen werden geladen …",
   connectionLost: "Verbindung unterbrochen – neuer Versuch läuft …",
+  sound: {
+    on: "Ton an",
+    off: "Ton aus",
+    enabledToast: "Ton für neue Bestellungen aktiviert.",
+    disabledToast: "Ton stummgeschaltet.",
+  },
   paymentBadge: {
     paypal: "PayPal",
     cash: "Bar",
@@ -312,11 +318,23 @@ export const kasseMessages = {
     kasse: "Kasse",
   },
   total: "Summe",
+  availability: {
+    open: "Verfügbarkeit",
+    title: "Verfügbarkeit",
+    subtitle: "Tippe ein Produkt an, um es für heute aus- oder wieder anzuschalten.",
+    done: "Fertig",
+    empty: "Keine Produkte vorhanden.",
+    markOut: "Heute aus",
+    markAvailable: "Wieder da",
+    badge: "Heute aus",
+  },
   toasts: {
     cashSuccess: "Bestellung an die Küche übergeben.",
     collectSuccess: "Als abgeholt markiert.",
     gone: "Diese Bestellung ist nicht mehr offen.",
     generic: "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
+    soldOut: "Als heute aus markiert.",
+    available: "Wieder verfügbar.",
   },
 } as const;
 
@@ -405,6 +423,11 @@ export const adminMessages = {
       soldOut: "Ausverkauft",
       label: (count: number) => `${count} auf Lager`,
     },
+    availability: {
+      markOut: "Heute aus",
+      markAvailable: "Wieder da",
+      badge: "Heute aus",
+    },
     form: {
       createTitle: "Neues Produkt",
       editTitle: "Produkt bearbeiten",
@@ -427,6 +450,8 @@ export const adminMessages = {
       reactivated: "Produkt reaktiviert.",
       moved: "Reihenfolge aktualisiert.",
       stock: "Bestand aktualisiert.",
+      soldOut: "Als heute aus markiert.",
+      available: "Wieder verfügbar.",
     },
   },
   modifiers: {

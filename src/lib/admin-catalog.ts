@@ -30,6 +30,8 @@ export type AdminProduct = {
   priceCents: number;
   imageUrl: string | null;
   stockCount: number | null;
+  /** Manual "sold out today" flag, independent of stockCount. */
+  soldOut: boolean;
   active: boolean;
   sortOrder: number;
   /** Ids of the modifier groups assigned to this product. */
@@ -123,6 +125,7 @@ export const updateProductSchema = z.object({
 
 export const moveSchema = z.object({ direction: z.enum(["up", "down"]) });
 export const setStockSchema = z.object({ stockCount: stockSchema });
+export const setSoldOutSchema = z.object({ soldOut: z.boolean() });
 
 export type Direction = z.infer<typeof moveSchema>["direction"];
 
@@ -204,6 +207,7 @@ export function getAdminCatalog(): AdminCategory[] {
         priceCents: product.priceCents,
         imageUrl: product.imageUrl,
         stockCount: product.stockCount,
+        soldOut: product.soldOut,
         active: product.active,
         sortOrder: product.sortOrder,
         modifierGroupIds: groupsByProduct.get(product.id) ?? [],
@@ -402,6 +406,12 @@ export function updateProduct(id: number, input: z.infer<typeof updateProductSch
 
 export function setProductStock(id: number, stockCount: number | null): void {
   const result = db.update(products).set({ stockCount }).where(eq(products.id, id)).run();
+  if (result.changes === 0) throw new AdminNotFoundError();
+}
+
+/** Toggles the manual "sold out today" flag. Independent of stockCount. */
+export function setProductSoldOut(id: number, soldOut: boolean): void {
+  const result = db.update(products).set({ soldOut }).where(eq(products.id, id)).run();
   if (result.changes === 0) throw new AdminNotFoundError();
 }
 

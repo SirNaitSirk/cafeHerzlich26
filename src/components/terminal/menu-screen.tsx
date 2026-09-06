@@ -34,7 +34,7 @@ export function MenuScreen({
   const [optionsProduct, setOptionsProduct] = useState<CatalogProduct | null>(null);
 
   const availableFor = (product: CatalogProduct) =>
-    availableToAdd(product.stockCount, cart.quantityForProduct(product.id));
+    product.soldOut ? 0 : availableToAdd(product.stockCount, cart.quantityForProduct(product.id));
 
   const handleAdd = (product: CatalogProduct) => {
     if (availableFor(product) <= 0) return;

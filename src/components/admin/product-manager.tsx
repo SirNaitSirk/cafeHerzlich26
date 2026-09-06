@@ -4,6 +4,8 @@ import { useState } from "react";
 import {
   ChevronDownIcon,
   ChevronUpIcon,
+  EyeIcon,
+  EyeOffIcon,
   MinusIcon,
   PencilIcon,
   PlusIcon,
@@ -29,6 +31,7 @@ export type ProductHandlers = {
   onMove: (id: number, direction: Direction) => Promise<boolean>;
   onToggleActive: (id: number, active: boolean) => Promise<boolean>;
   onSetStock: (id: number, stockCount: number | null) => Promise<boolean>;
+  onSetSoldOut: (id: number, soldOut: boolean) => Promise<boolean>;
 };
 
 export function ProductManager({
@@ -143,7 +146,13 @@ function ProductRow({
   const tracked = product.stockCount !== null;
 
   return (
-    <li className={cn("flex items-center gap-3 p-3", !product.active && "opacity-55")}>
+    <li
+      className={cn(
+        "flex items-center gap-3 p-3",
+        !product.active && "opacity-55",
+        product.soldOut && "bg-amber-50 dark:bg-amber-950/30",
+      )}
+    >
       <div className="flex flex-col">
         <Button
           variant="ghost"
@@ -172,13 +181,42 @@ function ProductRow({
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="truncate text-base font-medium">{product.name}</p>
+        <div className="flex items-center gap-2">
+          <p className="truncate text-base font-medium">{product.name}</p>
+          {product.soldOut && (
+            <Badge className="border-amber-300 bg-amber-100 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+              {t.products.availability.badge}
+            </Badge>
+          )}
+        </div>
         <p className="text-sm text-muted-foreground tabular-nums">
           {formatEuros(product.priceCents)}
         </p>
       </div>
 
       <StockControl product={product} onSetStock={handlers.onSetStock} tracked={tracked} />
+
+      {product.soldOut ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          className="h-10"
+          onClick={() => handlers.onSetSoldOut(product.id, false)}
+        >
+          <EyeIcon className="size-4" />
+          {t.products.availability.markAvailable}
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-10"
+          onClick={() => handlers.onSetSoldOut(product.id, true)}
+        >
+          <EyeOffIcon className="size-4" />
+          {t.products.availability.markOut}
+        </Button>
+      )}
 
       <Button variant="outline" size="sm" className="h-10" onClick={onEdit}>
         <PencilIcon className="size-4" />

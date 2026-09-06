@@ -235,6 +235,9 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
       if (!product) {
         throw new OrderValidationError("Ein Produkt ist nicht mehr verfügbar.");
       }
+      if (product.soldOut) {
+        throw new OrderValidationError("Ein Produkt ist nicht mehr verfügbar.");
+      }
       if (product.stockCount !== null && product.stockCount < item.quantity) {
         throw new OrderStockError(product.name);
       }

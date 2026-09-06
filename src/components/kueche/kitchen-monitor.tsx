@@ -1,9 +1,15 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AnimatePresence } from "motion/react";
 import { toast } from "sonner";
-import { ChefHatIcon, HistoryIcon, WifiOffIcon } from "lucide-react";
+import {
+  ChefHatIcon,
+  HistoryIcon,
+  Volume2Icon,
+  VolumeOffIcon,
+  WifiOffIcon,
+} from "lucide-react";
 
 import { OrderCard } from "@/components/kueche/order-card";
 import { OrderHistory } from "@/components/kueche/order-history";
@@ -16,9 +22,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Toaster } from "@/components/ui/sonner";
+import { useOrderChime } from "@/hooks/use-order-chime";
 import { useOrders } from "@/hooks/use-orders";
 import { kitchenMessages as t } from "@/lib/messages";
 import type { OrderWithItems, UpdateOrderInput } from "@/lib/orders";
+import { playNewOrderChime, unlockAudio } from "@/lib/sound";
+
+const SOUND_STORAGE_KEY = "kueche:sound";
 
 /** Parses a JSON error body without throwing on empty/invalid responses. */
 async function readError(response: Response): Promise<string | null> {
@@ -33,6 +43,34 @@ async function readError(response: Response): Promise<string | null> {
 export function KitchenMonitor({ initialOrders }: { initialOrders: OrderWithItems[] }) {
   const { orders, hasError } = useOrders("kitchen", initialOrders);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(true);
+
+  // Restore the saved preference after mount (localStorage is client-only, and a
+  // deferred read avoids both SSR access and a hydration mismatch on the toggle).
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSoundEnabled(localStorage.getItem(SOUND_STORAGE_KEY) !== "off");
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useOrderChime(orders, soundEnabled);
+
+  const toggleSound = useCallback(() => {
+    setSoundEnabled((previous) => {
+      const next = !previous;
+      localStorage.setItem(SOUND_STORAGE_KEY, next ? "on" : "off");
+      if (next) {
+        // This click is the user gesture that unlocks audio; confirm audibly.
+        unlockAudio();
+        playNewOrderChime();
+        toast.success(t.sound.enabledToast);
+      } else {
+        toast.info(t.sound.disabledToast);
+      }
+      return next;
+    });
+  }, []);
 
   const markDone = useCallback(async (id: number): Promise<boolean> => {
     try {
@@ -112,6 +150,20 @@ export function KitchenMonitor({ initialOrders }: { initialOrders: OrderWithItem
           <span className="rounded-full bg-secondary px-3 py-1 text-sm font-medium tabular-nums text-secondary-foreground">
             {t.openCount(orders.length)}
           </span>
+          <Button
+            variant="outline"
+            size="lg"
+            onClick={toggleSound}
+            aria-pressed={soundEnabled}
+            title={soundEnabled ? t.sound.on : t.sound.off}
+          >
+            {soundEnabled ? (
+              <Volume2Icon className="size-5" />
+            ) : (
+              <VolumeOffIcon className="size-5" />
+            )}
+            {soundEnabled ? t.sound.on : t.sound.off}
+          </Button>
           <Button variant="outline" size="lg" onClick={() => setHistoryOpen(true)}>
             <HistoryIcon className="size-5" />
             {t.history.open}

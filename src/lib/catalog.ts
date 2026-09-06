@@ -35,6 +35,8 @@ export type CatalogProduct = {
   imageUrl: string | null;
   /** NULL = unlimited. 0 = sold out (greyed / unselectable on the terminal). */
   stockCount: number | null;
+  /** Manual "sold out today" flag — greyed / unselectable regardless of stock. */
+  soldOut: boolean;
   /** Assigned option groups (active groups/options only). Empty = no options. */
   modifierGroups: CatalogModifierGroup[];
 };
@@ -67,6 +69,7 @@ export function getCatalog(): CatalogCategory[] {
       priceCents: products.priceCents,
       imageUrl: products.imageUrl,
       stockCount: products.stockCount,
+      soldOut: products.soldOut,
     })
     .from(products)
     .where(eq(products.active, true))
@@ -86,6 +89,7 @@ export function getCatalog(): CatalogCategory[] {
         priceCents: product.priceCents,
         imageUrl: product.imageUrl,
         stockCount: product.stockCount,
+        soldOut: product.soldOut,
         modifierGroups: groupsByProduct.get(product.id) ?? [],
       })),
   }));

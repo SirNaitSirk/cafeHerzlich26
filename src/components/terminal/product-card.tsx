@@ -25,7 +25,7 @@ export function ProductCard({
   onAdd: (product: CatalogProduct) => void;
 }) {
   const t = useTerminalCopy();
-  const soldOut = product.stockCount === 0 || available === 0;
+  const soldOut = product.soldOut || product.stockCount === 0 || available === 0;
   const showRemaining = isLowStock(product.stockCount) && !soldOut;
 
   return (
