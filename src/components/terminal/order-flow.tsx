@@ -20,6 +20,15 @@ import { orderDisplayLabel } from "@/lib/order-label";
 /** The steps of an order, from menu browsing to the confirmation screen. */
 type Step = "menu" | "cart" | "payment" | "paypal" | "success";
 
+/** What a host surface learns about an order the moment it was created. */
+export type CreatedOrder = {
+  id: number;
+  orderNumber: number;
+  totalCents: number;
+  guestName: string | null;
+  method: PaymentMethod;
+};
+
 /**
  * The shared ordering brain: Menü → Warenkorb → Zahlung → PayPal-QR / Erfolg.
  * Owns the cart, the step machine and the order submission; the hosting surface
@@ -29,7 +38,9 @@ type Step = "menu" | "cart" | "payment" | "paypal" | "success";
  * - Kasse mounts it directly to take an order on behalf of a guest (`source: "kasse"`).
  *
  * `onExit` fires when the guest cancels out of the menu; `onComplete` fires after
- * the success screen. The host provides its own `<Toaster />`.
+ * the success screen. `onOrderCreated` fires the moment the order was accepted by
+ * the server — the Kasse uses it to settle a cash order right away. The host
+ * provides its own `<Toaster />`.
  */
 export function OrderFlow({
   paypalHandle,
@@ -38,6 +49,7 @@ export function OrderFlow({
   source,
   onExit,
   onComplete,
+  onOrderCreated,
 }: {
   paypalHandle: string | null;
   cafeName: string;
@@ -45,6 +57,7 @@ export function OrderFlow({
   source: OrderSource;
   onExit: () => void;
   onComplete: () => void;
+  onOrderCreated?: (order: CreatedOrder) => void;
 }) {
   const [categories, setCategories] = useState(initialCatalog);
   const [step, setStep] = useState<Step>("menu");
@@ -110,11 +123,14 @@ export function OrderFlow({
           return;
         }
 
-        const result: { orderNumber: number } = await response.json();
+        const result: { id: number; orderNumber: number; totalCents: number } =
+          await response.json();
+        const guestName = name.trim() || null;
         setLastOrder({
           method,
-          label: orderDisplayLabel({ guestName: name, orderNumber: result.orderNumber }),
+          label: orderDisplayLabel({ guestName, orderNumber: result.orderNumber }),
         });
+        onOrderCreated?.({ ...result, guestName, method });
         cart.clear();
         setName("");
         setStep("success");
@@ -124,7 +140,7 @@ export function OrderFlow({
         setSubmitting(false);
       }
     },
-    [cart, name, refetchCatalog, source, submitting, t],
+    [cart, name, onOrderCreated, refetchCatalog, source, submitting, t],
   );
 
   const handlePaymentSelect = useCallback(

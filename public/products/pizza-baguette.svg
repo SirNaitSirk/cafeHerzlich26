@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img">
+  <title>Pizza-Baguette</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbeddb"/><stop offset="1" stop-color="#f3d9b0"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="400" fill="url(#bg)"/>
+  <circle cx="200" cy="200" r="152" fill="#ffffff" opacity="0.35"/>
+  <g transform="rotate(-18 200 200)">
+    <g fill="none" stroke="#7c5a3f" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M84 216c0-26 22-42 46-42h140c24 0 46 16 46 42s-22 42-46 42H130c-24 0-46-16-46-42z" fill="#d9a45c"/>
+      <path d="M100 200c4-16 20-24 34-24h132c18 0 32 10 34 24-6 14-20 22-34 22H134c-16 0-30-8-34-22z" fill="#c0472c"/>
+    </g>
+    <g fill="#f0c35c" stroke="#7c5a3f" stroke-width="5" stroke-linejoin="round">
+      <path d="M124 190c10-10 26-8 32 2 8-10 24-10 32 0 8-12 26-12 34 0 8-10 24-10 32 0 10-8 24-4 28 6-8 12-22 18-36 18H136c-12 0-22-10-12-26z"/>
+    </g>
+    <g fill="#4f7a34">
+      <circle cx="150" cy="204" r="5"/><circle cx="196" cy="196" r="5"/>
+      <circle cx="240" cy="208" r="5"/><circle cx="278" cy="198" r="5"/>
+    </g>
+  </g>
+</svg>

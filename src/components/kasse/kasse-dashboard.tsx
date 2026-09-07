@@ -7,8 +7,9 @@ import { EyeOffIcon, PlusIcon, SlidersHorizontalIcon, WifiOffIcon } from "lucide
 
 import { AvailabilityPanel } from "@/components/kasse/availability-panel";
 import { CashOrderCard } from "@/components/kasse/cash-order-card";
+import { CashRegisterDialog } from "@/components/kasse/cash-register-dialog";
 import { ReadyOrderCard } from "@/components/kasse/ready-order-card";
-import { OrderFlow } from "@/components/terminal/order-flow";
+import { OrderFlow, type CreatedOrder } from "@/components/terminal/order-flow";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -54,6 +55,10 @@ export function KasseDashboard({
   const { orders: readyOrders, hasError: readyError } = useOrders("ready", initialReadyOrders);
   const [ordering, setOrdering] = useState(false);
   const [managingAvailability, setManagingAvailability] = useState(false);
+  // A cash order just taken on behalf of a guest: settled right away in the
+  // register dialog instead of being hunted down in the queue afterwards.
+  const [pendingCashOrder, setPendingCashOrder] = useState<CreatedOrder | null>(null);
+  const [settling, setSettling] = useState(false);
 
   const confirmCash = useCallback(
     (id: number) => patchOrder(id, "cash", t.toasts.cashSuccess),
@@ -63,6 +68,39 @@ export function KasseDashboard({
     (id: number) => patchOrder(id, "collect", t.toasts.collectSuccess),
     [],
   );
+
+  // A cash order placed at the till goes straight into the register dialog; a
+  // PayPal one keeps the plain flow. Cancelling leaves it in the cash queue.
+  const handleOrderCreated = useCallback((order: CreatedOrder) => {
+    if (order.method === "cash") {
+      setPendingCashOrder(order);
+    }
+  }, []);
+
+  const settlePendingCashOrder = useCallback(async () => {
+    if (!pendingCashOrder) return;
+    setSettling(true);
+    const ok = await confirmCash(pendingCashOrder.id);
+    setSettling(false);
+    if (ok) {
+      setPendingCashOrder(null);
+      setOrdering(false);
+    }
+  }, [confirmCash, pendingCashOrder]);
+
+  // Rendered above whichever screen is active, so it survives the order flow
+  // unmounting itself (the success screen auto-returns after a few seconds).
+  const cashRegister = pendingCashOrder ? (
+    <CashRegisterDialog
+      order={pendingCashOrder}
+      open
+      onOpenChange={(open) => {
+        if (!open && !settling) setPendingCashOrder(null);
+      }}
+      onConfirm={() => void settlePendingCashOrder()}
+      pending={settling}
+    />
+  ) : null;
 
   // The on-behalf ordering flow takes over the whole screen when active.
   if (ordering) {
@@ -75,7 +113,9 @@ export function KasseDashboard({
           source="kasse"
           onExit={() => setOrdering(false)}
           onComplete={() => setOrdering(false)}
+          onOrderCreated={handleOrderCreated}
         />
+        {cashRegister}
         <Toaster position="top-center" richColors />
       </>
     );
@@ -181,6 +221,7 @@ export function KasseDashboard({
         </section>
       </main>
 
+      {cashRegister}
       <Toaster position="top-center" richColors />
     </div>
   );

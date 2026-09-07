@@ -17,7 +17,6 @@ import {
   type Order,
   type OrderItem,
   type OrderItemModifier,
-  type OrderSource,
   type OrderStatus,
   type PaymentMethod,
 } from "@/lib/db/schema";
@@ -100,15 +99,15 @@ export class OrderTransitionError extends Error {
 }
 
 /**
- * The initial status is a pure function of payment method and source:
- * - paypal            → in_kitchen    (only ever persisted AFTER "Ich habe bezahlt")
- * - cash, terminal    → awaiting_cash (waits in the Kasse queue; not yet in the kitchen)
- * - cash, kasse       → in_kitchen    (staff collect the cash at the counter in that
- *                                      moment, so it goes straight to the kitchen)
+ * The initial status is a pure function of the payment method:
+ * - paypal → in_kitchen    (only ever persisted AFTER "Ich habe bezahlt")
+ * - cash   → awaiting_cash (the money still has to be collected — at the terminal
+ *                           the guest walks to the Kasse queue, at the Kasse the
+ *                           register dialog opens right away; both release the
+ *                           order into the kitchen via `confirmCashCollected`)
  */
-function initialStatus(method: PaymentMethod, source: OrderSource): OrderStatus {
-  if (method === "paypal") return "in_kitchen";
-  return source === "kasse" ? "in_kitchen" : "awaiting_cash";
+function initialStatus(method: PaymentMethod): OrderStatus {
+  return method === "paypal" ? "in_kitchen" : "awaiting_cash";
 }
 
 function startOfTodayMs(): number {
@@ -212,9 +211,10 @@ function resolveItemModifiers(
  * daily-resetting order number, and writes the order + item + modifier snapshots.
  */
 export function createOrder(input: CreateOrderInput): CreateOrderResult {
-  const status = initialStatus(input.paymentMethod, input.source);
+  const status = initialStatus(input.paymentMethod);
   const now = Date.now();
-  // Paid the moment it enters the kitchen: PayPal (confirmed) or cash at the Kasse.
+  // Paid the moment it enters the kitchen — for cash that is the Kasse
+  // confirmation, which stamps `paidConfirmedAt` itself.
   const paidConfirmedAt = status === "in_kitchen" ? now : null;
 
   return db.transaction((tx) => {

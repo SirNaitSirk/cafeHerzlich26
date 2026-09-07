@@ -14,7 +14,17 @@ import {
 import { formatEuros } from "@/lib/format";
 import { kasseMessages } from "@/lib/messages";
 import { orderDisplayLabel } from "@/lib/order-label";
-import type { OrderWithItems } from "@/lib/orders";
+
+/**
+ * The minimum an order must provide to be settled at the till: the amount due
+ * plus what the label needs. Kept structural so both a full `OrderWithItems`
+ * (cash queue) and a freshly created order (Kasse order flow) fit.
+ */
+export type CashRegisterOrder = {
+  guestName: string | null;
+  orderNumber: number;
+  totalCents: number;
+};
 
 const t = kasseMessages.cash.dialog;
 
@@ -75,7 +85,7 @@ export function CashRegisterDialog({
   onConfirm,
   pending,
 }: {
-  order: OrderWithItems;
+  order: CashRegisterOrder;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConfirm: () => void;
