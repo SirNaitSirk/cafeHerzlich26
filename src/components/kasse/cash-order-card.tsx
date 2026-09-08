@@ -18,14 +18,14 @@ export function CashOrderCard({
   onConfirm,
 }: {
   order: OrderWithItems;
-  onConfirm: (id: number) => Promise<boolean>;
+  onConfirm: (id: number, directSale: boolean) => Promise<boolean>;
 }) {
   const [pending, setPending] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
 
   async function handleConfirm() {
     setPending(true);
-    const ok = await onConfirm(order.id);
+    const ok = await onConfirm(order.id, order.directSale);
     if (ok) {
       setDialogOpen(false); // on success the card animates out
     } else {

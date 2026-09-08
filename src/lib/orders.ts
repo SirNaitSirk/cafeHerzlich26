@@ -17,6 +17,7 @@ import {
   type Order,
   type OrderItem,
   type OrderItemModifier,
+  type OrderSource,
   type OrderStatus,
   type PaymentMethod,
 } from "@/lib/db/schema";
@@ -32,6 +33,9 @@ export const CASH_QUEUE_STATUSES = ["awaiting_cash"] as const;
 
 /** Statuses the Kasse "ready for pickup" list shows (mirrors the Abholmonitor). */
 export const READY_STATUSES = ["ready"] as const;
+
+/** Statuses the Kasse "recently collected" list shows (the undo target). */
+export const COLLECTED_STATUSES = ["collected"] as const;
 
 /** Statuses the kitchen history shows: done (ready/collected) + deleted (cancelled). */
 export const HISTORY_STATUSES = ["ready", "collected", "cancelled"] as const;
@@ -64,11 +68,19 @@ export type CreateOrderResult = {
   id: number;
   orderNumber: number;
   totalCents: number;
+  /** True when the order skips the kitchen entirely — the Kasse hands it over directly. */
+  directSale: boolean;
 };
 
 /** Thrown when requested quantities exceed available stock. Maps to HTTP 409. */
 export class OrderStockError extends Error {
-  constructor(public readonly productName: string) {
+  constructor(
+    public readonly productName: string,
+    /** Units still available — lets the client trim the cart line to what is left. */
+    public readonly available: number,
+    /** The product that ran out, so the client knows which cart line to trim. */
+    public readonly productId: number,
+  ) {
     super(`Nicht genug Bestand für "${productName}".`);
     this.name = "OrderStockError";
   }
@@ -99,15 +111,33 @@ export class OrderTransitionError extends Error {
 }
 
 /**
- * The initial status is a pure function of the payment method:
- * - paypal → in_kitchen    (only ever persisted AFTER "Ich habe bezahlt")
+ * A Kasse order made up entirely of no-prep products (a chocolate bar, a can of
+ * cola) is handed over across the counter the moment it is paid: it never reaches
+ * the kitchen or the pickup board. Terminal orders are never direct sales — the
+ * guest is not standing behind the counter, so somebody still has to hand the
+ * items out, which is exactly what the kitchen and the pickup board are for.
+ */
+function isDirectSale(
+  source: OrderSource,
+  items: { needsPreparation: boolean }[],
+): boolean {
+  return source === "kasse" && items.every((item) => !item.needsPreparation);
+}
+
+/**
+ * The initial status is a function of the payment method and whether the order
+ * is a direct sale:
+ * - paypal → in_kitchen    (only ever persisted AFTER "Ich habe bezahlt"), or
+ *                          collected right away for a direct sale
  * - cash   → awaiting_cash (the money still has to be collected — at the terminal
  *                           the guest walks to the Kasse queue, at the Kasse the
- *                           register dialog opens right away; both release the
- *                           order into the kitchen via `confirmCashCollected`)
+ *                           register dialog opens right away; `confirmCashPayment`
+ *                           then releases the order into the kitchen, or settles a
+ *                           direct sale as collected)
  */
-function initialStatus(method: PaymentMethod): OrderStatus {
-  return method === "paypal" ? "in_kitchen" : "awaiting_cash";
+function initialStatus(method: PaymentMethod, directSale: boolean): OrderStatus {
+  if (method !== "paypal") return "awaiting_cash";
+  return directSale ? "collected" : "in_kitchen";
 }
 
 function startOfTodayMs(): number {
@@ -209,13 +239,16 @@ function resolveItemModifiers(
  * Creates an order atomically: re-validates products, computes the total from
  * DB prices (never trusts the client), checks and decrements stock, assigns a
  * daily-resetting order number, and writes the order + item + modifier snapshots.
+ *
+ * ATOMICITY: `better-sqlite3` is fully synchronous and this function contains no
+ * `await`, so the whole transaction runs in a single, uninterrupted tick of the
+ * event loop. That is what makes check-then-decrement safe when two terminals
+ * order the last unit at the same time — the second request cannot slip in
+ * between the check and the decrement. Introducing an `await` anywhere inside
+ * this transaction would silently break that guarantee and allow overselling.
  */
 export function createOrder(input: CreateOrderInput): CreateOrderResult {
-  const status = initialStatus(input.paymentMethod);
   const now = Date.now();
-  // Paid the moment it enters the kitchen — for cash that is the Kasse
-  // confirmation, which stamps `paidConfirmedAt` itself.
-  const paidConfirmedAt = status === "in_kitchen" ? now : null;
 
   return db.transaction((tx) => {
     const ids = input.items.map((item) => item.productId);
@@ -225,6 +258,18 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
       .where(and(inArray(products.id, ids), eq(products.active, true)))
       .all();
     const byId = new Map(rows.map((row) => [row.id, row]));
+
+    // Stock is tracked per PRODUCT, but the same product may appear in several
+    // order lines (one per modifier combination). Sum the requested quantities
+    // per product first, so checking and decrementing both work on that total —
+    // checking line by line would let 2 lines of 2 pass against a stock of 2.
+    const requestedByProduct = new Map<number, number>();
+    for (const item of input.items) {
+      requestedByProduct.set(
+        item.productId,
+        (requestedByProduct.get(item.productId) ?? 0) + item.quantity,
+      );
+    }
 
     // Validate + price every line up front: effective unit price is the product
     // price plus the chosen modifier deltas. `totalCents` is derived here, never
@@ -238,8 +283,9 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
       if (product.soldOut) {
         throw new OrderValidationError("Ein Produkt ist nicht mehr verfügbar.");
       }
-      if (product.stockCount !== null && product.stockCount < item.quantity) {
-        throw new OrderStockError(product.name);
+      const requested = requestedByProduct.get(product.id) ?? item.quantity;
+      if (product.stockCount !== null && product.stockCount < requested) {
+        throw new OrderStockError(product.name, product.stockCount, product.id);
       }
       const chosenModifiers = resolveItemModifiers(tx, product.id, item.modifierIds);
       const deltaSum = chosenModifiers.reduce((sum, mod) => sum + mod.priceDeltaCents, 0);
@@ -247,6 +293,20 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
       totalCents += unitPriceCents * item.quantity;
       return { item, product, chosenModifiers, unitPriceCents };
     });
+
+    // A direct sale skips the kitchen: decided here, once, and persisted — later
+    // catalog edits must not rewrite what already happened to this order.
+    const directSale = isDirectSale(
+      input.source,
+      priced.map(({ product }) => product),
+    );
+    const status = initialStatus(input.paymentMethod, directSale);
+    // Paid the moment it leaves the payment step — for cash that is the Kasse
+    // confirmation, which stamps `paidConfirmedAt` itself.
+    const paidConfirmedAt = status === "awaiting_cash" ? null : now;
+    // A direct sale is prepared and handed over in the same instant, so it also
+    // carries a readyAt — history and the "recently collected" list sort by it.
+    const readyAt = status === "collected" ? now : null;
 
     // Daily-resetting running number.
     const todaysCount = tx
@@ -264,9 +324,11 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
         paymentMethod: input.paymentMethod,
         status,
         source: input.source,
+        directSale,
         totalCents,
         createdAt: now,
         paidConfirmedAt,
+        readyAt,
       })
       .returning({ id: orders.id })
       .all();
@@ -281,6 +343,7 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
           nameSnapshot: product.name,
           unitPriceCents,
           quantity: item.quantity,
+          needsPreparation: product.needsPreparation,
         })
         .returning({ id: orderItems.id })
         .all();
@@ -300,18 +363,20 @@ export function createOrder(input: CreateOrderInput): CreateOrderResult {
       }
     }
 
-    // Decrement stock only for products that track it.
-    for (const item of input.items) {
-      const product = byId.get(item.productId)!;
+    // Decrement stock once per product (the summed quantity), only for products
+    // that track it. Decrementing per line would double-count a product that
+    // appears in more than one line.
+    for (const [productId, quantity] of requestedByProduct) {
+      const product = byId.get(productId)!;
       if (product.stockCount !== null) {
         tx.update(products)
-          .set({ stockCount: sql`${products.stockCount} - ${item.quantity}` })
-          .where(eq(products.id, product.id))
+          .set({ stockCount: sql`${products.stockCount} - ${quantity}` })
+          .where(eq(products.id, productId))
           .run();
       }
     }
 
-    return { id: order.id, orderNumber, totalCents };
+    return { id: order.id, orderNumber, totalCents, directSale };
   });
 }
 
@@ -404,6 +469,32 @@ export function listOrderHistory(): OrderWithItems[] {
       and(
         inArray(orders.status, [...HISTORY_STATUSES]),
         gte(orders.createdAt, startOfTodayMs()),
+        // Direct sales never reached the kitchen, so they are not part of its
+        // history — they stay in the Kasse list and the admin archive.
+        eq(orders.directSale, false),
+      ),
+    )
+    .orderBy(desc(resolvedAt), desc(orders.id))
+    .all();
+
+  return hydrateOrders(orderRows);
+}
+
+/**
+ * Loads today's collected orders — the Kasse undo list for pickups that were
+ * marked "Abgeholt" by mistake, newest first. There is no collected_at column,
+ * so the sort key is readyAt (≈ the pickup order) with createdAt as fallback.
+ * Bounded to today (matches the daily-resetting order number).
+ */
+export function listCollectedToday(): OrderWithItems[] {
+  const resolvedAt = sql`coalesce(${orders.readyAt}, ${orders.createdAt})`;
+  const orderRows = db
+    .select()
+    .from(orders)
+    .where(
+      and(
+        inArray(orders.status, [...COLLECTED_STATUSES]),
+        gte(orders.createdAt, startOfTodayMs()),
       ),
     )
     .orderBy(desc(resolvedAt), desc(orders.id))
@@ -458,14 +549,22 @@ function restockItems(tx: Tx, items: Pick<OrderItem, "productId" | "quantity">[]
 
 /**
  * Kasse confirms the cash was collected: awaiting_cash → in_kitchen, stamping
- * paidConfirmedAt. Releases the order into the kitchen.
+ * paidConfirmedAt. Releases the order into the kitchen — unless it is a direct
+ * sale, which is handed over across the counter right away and therefore goes
+ * straight to collected (readyAt stamped too, so it sorts like every other
+ * finished order).
  */
 export function confirmCashPayment(id: number): void {
   db.transaction((tx) => {
     const order = requireOrder(tx, id);
     if (order.status !== "awaiting_cash") throw new OrderTransitionError();
+    const now = Date.now();
     tx.update(orders)
-      .set({ status: "in_kitchen", paidConfirmedAt: Date.now() })
+      .set(
+        order.directSale
+          ? { status: "collected", paidConfirmedAt: now, readyAt: now }
+          : { status: "in_kitchen", paidConfirmedAt: now },
+      )
       .where(eq(orders.id, id))
       .run();
   });
@@ -483,6 +582,22 @@ export function collectOrder(id: number): void {
   });
 }
 
+/**
+ * Kasse takes back an accidental pickup: collected → ready. No restock (the goods
+ * were never returned to the shelf) and readyAt stays untouched, so the "fertig
+ * seit" timer keeps telling the truth.
+ */
+export function uncollectOrder(id: number): void {
+  db.transaction((tx) => {
+    const order = requireOrder(tx, id);
+    if (order.status !== "collected") throw new OrderTransitionError();
+    // A direct sale was never "ready" — putting it back would make it appear on
+    // the pickup board it deliberately skipped. Such orders are cancelled instead.
+    if (order.directSale) throw new OrderTransitionError();
+    tx.update(orders).set({ status: "ready" }).where(eq(orders.id, id)).run();
+  });
+}
+
 /** Kitchen marks an order done: in_kitchen → ready, stamping readyAt. */
 export function markOrderReady(id: number): void {
   db.transaction((tx) => {
@@ -496,13 +611,17 @@ export function markOrderReady(id: number): void {
 }
 
 /**
- * Cancels an open order (soft): status → cancelled and every tracked item is
- * restocked. History and daily order numbers are preserved.
+ * Cancels an order (soft): status → cancelled and every tracked item is
+ * restocked. History and daily order numbers are preserved. Allowed for open
+ * kitchen orders and for a settled direct sale — the latter never passes through
+ * the kitchen, so cancelling it out of the Kasse list is its only correction.
  */
 export function cancelOrder(id: number): void {
   db.transaction((tx) => {
     const order = requireOrder(tx, id);
-    if (order.status !== "in_kitchen") throw new OrderTransitionError();
+    const cancellable =
+      order.status === "in_kitchen" || (order.status === "collected" && order.directSale);
+    if (!cancellable) throw new OrderTransitionError();
     const items = tx.select().from(orderItems).where(eq(orderItems.orderId, id)).all();
     restockItems(tx, items);
     tx.update(orders)
@@ -521,6 +640,8 @@ export function restoreOrder(id: number): void {
   db.transaction((tx) => {
     const order = requireOrder(tx, id);
     if (order.status !== "cancelled") throw new OrderTransitionError();
+    // Restoring means "back into the kitchen", which a direct sale never entered.
+    if (order.directSale) throw new OrderTransitionError();
     const items = tx.select().from(orderItems).where(eq(orderItems.orderId, id)).all();
     for (const item of items) {
       if (item.productId === null) continue;
@@ -608,7 +729,11 @@ export function updateOrder(id: number, input: UpdateOrderInput): UpdateOrderRes
           .where(eq(products.id, item.productId))
           .get();
         if (product && product.stockCount !== null && product.stockCount < delta) {
-          throw new OrderStockError(item.nameSnapshot);
+          throw new OrderStockError(
+            item.nameSnapshot,
+            item.quantity + product.stockCount,
+            item.productId,
+          );
         }
         tx.update(products)
           .set({ stockCount: sql`${products.stockCount} - ${delta}` })

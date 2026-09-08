@@ -12,6 +12,7 @@ import {
   confirmCashPayment,
   markOrderReady,
   restoreOrder,
+  uncollectOrder,
   updateOrder,
   updateOrderSchema,
 } from "@/lib/orders";
@@ -19,11 +20,12 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** PATCH body: mark done, confirm cash, mark collected, or apply an edit. */
+/** PATCH body: mark done, confirm cash, mark (un)collected, restore, or apply an edit. */
 const patchSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("ready") }),
   z.object({ action: z.literal("cash") }),
   z.object({ action: z.literal("collect") }),
+  z.object({ action: z.literal("uncollect") }),
   z.object({ action: z.literal("restore") }),
   updateOrderSchema.extend({ action: z.literal("update") }),
 ]);
@@ -55,6 +57,7 @@ function errorResponse(error: unknown): NextResponse {
  * Mutates a single order: `{ action: "ready" }` marks it done (→ ready, green on
  * the Abholmonitor), `{ action: "cash" }` confirms cash collected (→ in_kitchen),
  * `{ action: "collect" }` marks a ready order picked up (→ collected),
+ * `{ action: "uncollect" }` takes an accidental pickup back (→ ready),
  * `{ action: "update", ... }` edits items/name. All broadcast `orders:changed`;
  * edits that touched stock also broadcast `catalog:changed`.
  */
@@ -94,6 +97,12 @@ export async function PATCH(
 
     if (parsed.data.action === "collect") {
       collectOrder(id);
+      broadcast({ type: "orders:changed" });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (parsed.data.action === "uncollect") {
+      uncollectOrder(id);
       broadcast({ type: "orders:changed" });
       return NextResponse.json({ ok: true });
     }

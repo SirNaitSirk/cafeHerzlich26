@@ -24,6 +24,7 @@ export type ProductFormValues = {
   priceCents: number;
   imageUrl: string | null;
   stockCount: number | null;
+  needsPreparation: boolean;
   modifierGroupIds: number[];
 };
 
@@ -52,6 +53,7 @@ export function ProductFormDialog({
   const [price, setPrice] = useState(product ? formatPrice(product.priceCents) : "");
   const [imageUrl, setImageUrl] = useState<string | null>(product?.imageUrl ?? null);
   const [stock, setStock] = useState(product?.stockCount != null ? String(product.stockCount) : "");
+  const [needsPreparation, setNeedsPreparation] = useState(product?.needsPreparation ?? true);
   const [groupIds, setGroupIds] = useState<number[]>(product?.modifierGroupIds ?? []);
   const [submitting, setSubmitting] = useState(false);
   const [priceError, setPriceError] = useState(false);
@@ -65,6 +67,7 @@ export function ProductFormDialog({
       setPrice(product ? formatPrice(product.priceCents) : "");
       setImageUrl(product?.imageUrl ?? null);
       setStock(product?.stockCount != null ? String(product.stockCount) : "");
+      setNeedsPreparation(product?.needsPreparation ?? true);
       setGroupIds(product?.modifierGroupIds ?? []);
       setSubmitting(false);
       setPriceError(false);
@@ -102,6 +105,7 @@ export function ProductFormDialog({
       priceCents,
       imageUrl,
       stockCount: Number.isNaN(stockCount as number) ? null : stockCount,
+      needsPreparation,
       modifierGroupIds: groupIds,
     });
     setSubmitting(false);
@@ -194,6 +198,32 @@ export function ProductFormDialog({
               className="h-11"
             />
             <p className="text-xs text-muted-foreground">{t.products.form.stockHint}</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={needsPreparation}
+              onClick={() => setNeedsPreparation((value) => !value)}
+              className="flex w-full items-center justify-between gap-4 rounded-lg border px-3 py-2.5 text-left transition-colors hover:bg-muted/50"
+            >
+              <span className="text-sm font-medium">{t.products.form.preparation}</span>
+              <span
+                className={cn(
+                  "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+                  needsPreparation ? "bg-primary" : "bg-input",
+                )}
+              >
+                <span
+                  className={cn(
+                    "absolute top-0.5 size-5 rounded-full bg-background shadow transition-all",
+                    needsPreparation ? "left-[1.375rem]" : "left-0.5",
+                  )}
+                />
+              </span>
+            </button>
+            <p className="text-xs text-muted-foreground">{t.products.form.preparationHint}</p>
           </div>
 
           <div className="space-y-1.5">

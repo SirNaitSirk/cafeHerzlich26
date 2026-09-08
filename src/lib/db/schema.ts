@@ -38,6 +38,15 @@ export const products = sqliteTable("products", {
    * counting, no auto-reset.
    */
   soldOut: integer("sold_out", { mode: "boolean" }).notNull().default(false),
+  /**
+   * Whether the kitchen has to prepare this product. False = direct sale (a
+   * chocolate bar, a can of cola): an order made up entirely of such items and
+   * placed at the Kasse is handed over across the counter and never reaches the
+   * kitchen or the pickup board.
+   */
+  needsPreparation: integer("needs_preparation", { mode: "boolean" })
+    .notNull()
+    .default(true),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: integer("created_at").notNull().default(now),
@@ -78,6 +87,11 @@ export const orders = sqliteTable("orders", {
   paymentMethod: text("payment_method").$type<PaymentMethod>().notNull(),
   status: text("status").$type<OrderStatus>().notNull(),
   source: text("source").$type<OrderSource>().notNull(),
+  /**
+   * Decided once at creation and never recomputed: a Kasse order whose items all
+   * skip preparation. Such an order goes straight to `collected` when it is paid.
+   */
+  directSale: integer("direct_sale", { mode: "boolean" }).notNull().default(false),
   /** Order total in integer cents (sum of item snapshots). */
   totalCents: integer("total_cents").notNull(),
   createdAt: integer("created_at").notNull().default(now),
@@ -100,6 +114,10 @@ export const orderItems = sqliteTable("order_items", {
   nameSnapshot: text("name_snapshot").notNull(),
   /** Snapshot of unit price in cents at order time. */
   unitPriceCents: integer("unit_price_cents").notNull(),
+  /** Snapshot of the product's `needsPreparation` at order time — history must stay stable. */
+  needsPreparation: integer("needs_preparation", { mode: "boolean" })
+    .notNull()
+    .default(true),
   quantity: integer("quantity").notNull(),
 });
 

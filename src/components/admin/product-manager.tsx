@@ -3,18 +3,28 @@
 import { useState } from "react";
 import {
   ChevronDownIcon,
+  ChevronRightIcon,
   ChevronUpIcon,
   EyeIcon,
   EyeOffIcon,
   MinusIcon,
   PencilIcon,
   PlusIcon,
+  Trash2Icon,
 } from "lucide-react";
 
 import { ProductFormDialog, type ProductFormValues } from "@/components/admin/product-form-dialog";
 import { ProductImage } from "@/components/terminal/product-image";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type {
   AdminCategory,
   AdminModifierGroup,
@@ -32,6 +42,7 @@ export type ProductHandlers = {
   onToggleActive: (id: number, active: boolean) => Promise<boolean>;
   onSetStock: (id: number, stockCount: number | null) => Promise<boolean>;
   onSetSoldOut: (id: number, soldOut: boolean) => Promise<boolean>;
+  onDelete: (id: number) => Promise<boolean>;
 };
 
 export function ProductManager({
@@ -46,8 +57,23 @@ export function ProductManager({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AdminProduct | null>(null);
   const [presetCategoryId, setPresetCategoryId] = useState<number | null>(null);
+  const [expandedArchives, setExpandedArchives] = useState<Record<number, boolean>>({});
+  const [deleting, setDeleting] = useState<AdminProduct | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
 
   const hasCategories = categories.length > 0;
+
+  function toggleArchive(categoryId: number) {
+    setExpandedArchives((current) => ({ ...current, [categoryId]: !current[categoryId] }));
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    setDeletePending(true);
+    const ok = await handlers.onDelete(deleting.id);
+    setDeletePending(false);
+    if (ok) setDeleting(null);
+  }
 
   function openCreate(categoryId: number | null) {
     setEditing(null);
@@ -78,42 +104,91 @@ export function ProductManager({
         </Button>
       </div>
 
-      {categories.map((category) => (
-        <section key={category.id} className="space-y-3">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold tracking-tight">{category.name}</h3>
-            {!category.active && <Badge variant="secondary">{t.common.inactive}</Badge>}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto h-9"
-              onClick={() => openCreate(category.id)}
-            >
-              <PlusIcon className="size-4" />
-              {t.products.add}
-            </Button>
-          </div>
+      {categories.map((category) => {
+        const activeProducts = category.products.filter((product) => product.active);
+        const archivedProducts = category.products.filter((product) => !product.active);
+        const archiveOpen = expandedArchives[category.id] ?? false;
 
-          {category.products.length === 0 ? (
-            <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
-              {t.products.empty}
-            </p>
-          ) : (
-            <ul className="divide-y rounded-2xl border">
-              {category.products.map((product, index) => (
-                <ProductRow
-                  key={product.id}
-                  product={product}
-                  isFirst={index === 0}
-                  isLast={index === category.products.length - 1}
-                  handlers={handlers}
-                  onEdit={() => openEdit(product)}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+        return (
+          <section key={category.id} className="space-y-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold tracking-tight">{category.name}</h3>
+              {!category.active && <Badge variant="secondary">{t.common.inactive}</Badge>}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-9"
+                onClick={() => openCreate(category.id)}
+              >
+                <PlusIcon className="size-4" />
+                {t.products.add}
+              </Button>
+            </div>
+
+            {activeProducts.length === 0 ? (
+              <p className="rounded-xl border border-dashed p-6 text-center text-sm text-muted-foreground">
+                {t.products.empty}
+              </p>
+            ) : (
+              <ul className="divide-y rounded-2xl border">
+                {activeProducts.map((product, index) => (
+                  <ProductRow
+                    key={product.id}
+                    product={product}
+                    isFirst={index === 0}
+                    isLast={index === activeProducts.length - 1}
+                    archived={false}
+                    handlers={handlers}
+                    onEdit={() => openEdit(product)}
+                    onDelete={() => setDeleting(product)}
+                  />
+                ))}
+              </ul>
+            )}
+
+            {archivedProducts.length > 0 && (
+              <div className="space-y-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 text-muted-foreground"
+                  aria-expanded={archiveOpen}
+                  onClick={() => toggleArchive(category.id)}
+                >
+                  {archiveOpen ? (
+                    <ChevronDownIcon className="size-4" />
+                  ) : (
+                    <ChevronRightIcon className="size-4" />
+                  )}
+                  {t.products.archive.heading(archivedProducts.length)}
+                </Button>
+
+                {archiveOpen && (
+                  <>
+                    <p className="px-1 text-sm text-muted-foreground">
+                      {t.products.archive.hint}
+                    </p>
+                    <ul className="divide-y rounded-2xl border">
+                      {archivedProducts.map((product) => (
+                        <ProductRow
+                          key={product.id}
+                          product={product}
+                          isFirst
+                          isLast
+                          archived
+                          handlers={handlers}
+                          onEdit={() => openEdit(product)}
+                          onDelete={() => setDeleting(product)}
+                        />
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
+          </section>
+        );
+      })}
 
       <ProductFormDialog
         open={dialogOpen}
@@ -126,6 +201,25 @@ export function ProductManager({
           editing ? handlers.onUpdate(editing.id, values) : handlers.onCreate(values)
         }
       />
+
+      <Dialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t.products.confirmDelete.title}</DialogTitle>
+            <DialogDescription>
+              {deleting && t.products.confirmDelete.description(deleting.name)}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleting(null)} disabled={deletePending}>
+              {t.products.confirmDelete.cancel}
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deletePending}>
+              {t.products.confirmDelete.confirm}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -134,14 +228,19 @@ function ProductRow({
   product,
   isFirst,
   isLast,
+  archived,
   handlers,
   onEdit,
+  onDelete,
 }: {
   product: AdminProduct;
   isFirst: boolean;
   isLast: boolean;
+  /** Archived rows drop reordering, stock and availability — only edit, reactivate, delete. */
+  archived: boolean;
   handlers: ProductHandlers;
   onEdit: () => void;
+  onDelete: () => void;
 }) {
   const tracked = product.stockCount !== null;
 
@@ -153,28 +252,30 @@ function ProductRow({
         product.soldOut && "bg-amber-50 dark:bg-amber-950/30",
       )}
     >
-      <div className="flex flex-col">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="size-8"
-          disabled={isFirst}
-          onClick={() => handlers.onMove(product.id, "up")}
-          aria-label={t.common.moveUp}
-        >
-          <ChevronUpIcon className="size-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="size-8"
-          disabled={isLast}
-          onClick={() => handlers.onMove(product.id, "down")}
-          aria-label={t.common.moveDown}
-        >
-          <ChevronDownIcon className="size-4" />
-        </Button>
-      </div>
+      {!archived && (
+        <div className="flex flex-col">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-8"
+            disabled={isFirst}
+            onClick={() => handlers.onMove(product.id, "up")}
+            aria-label={t.common.moveUp}
+          >
+            <ChevronUpIcon className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-8"
+            disabled={isLast}
+            onClick={() => handlers.onMove(product.id, "down")}
+            aria-label={t.common.moveDown}
+          >
+            <ChevronDownIcon className="size-4" />
+          </Button>
+        </div>
+      )}
 
       <div className="relative size-14 shrink-0 overflow-hidden rounded-xl">
         <ProductImage name={product.name} imageUrl={product.imageUrl} />
@@ -188,41 +289,68 @@ function ProductRow({
               {t.products.availability.badge}
             </Badge>
           )}
+          {!product.needsPreparation && (
+            <Badge variant="secondary">{t.products.directSaleBadge}</Badge>
+          )}
         </div>
         <p className="text-sm text-muted-foreground tabular-nums">
           {formatEuros(product.priceCents)}
         </p>
       </div>
 
-      <StockControl product={product} onSetStock={handlers.onSetStock} tracked={tracked} />
+      {!archived && (
+        <>
+          <StockControl product={product} onSetStock={handlers.onSetStock} tracked={tracked} />
 
-      {product.soldOut ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          className="h-10"
-          onClick={() => handlers.onSetSoldOut(product.id, false)}
-        >
-          <EyeIcon className="size-4" />
-          {t.products.availability.markAvailable}
-        </Button>
-      ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-10"
-          onClick={() => handlers.onSetSoldOut(product.id, true)}
-        >
-          <EyeOffIcon className="size-4" />
-          {t.products.availability.markOut}
-        </Button>
+          {product.soldOut ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-10"
+              onClick={() => handlers.onSetSoldOut(product.id, false)}
+            >
+              <EyeIcon className="size-4" />
+              {t.products.availability.markAvailable}
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10"
+              onClick={() => handlers.onSetSoldOut(product.id, true)}
+            >
+              <EyeOffIcon className="size-4" />
+              {t.products.availability.markOut}
+            </Button>
+          )}
+        </>
       )}
 
       <Button variant="outline" size="sm" className="h-10" onClick={onEdit}>
         <PencilIcon className="size-4" />
         {t.common.edit}
       </Button>
-      {product.active ? (
+      {archived ? (
+        <>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="h-10"
+            onClick={() => handlers.onToggleActive(product.id, true)}
+          >
+            {t.common.reactivate}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-10 text-destructive hover:text-destructive"
+            onClick={onDelete}
+          >
+            <Trash2Icon className="size-4" />
+            {t.common.deleteForever}
+          </Button>
+        </>
+      ) : (
         <Button
           variant="ghost"
           size="sm"
@@ -230,15 +358,6 @@ function ProductRow({
           onClick={() => handlers.onToggleActive(product.id, false)}
         >
           {t.common.deactivate}
-        </Button>
-      ) : (
-        <Button
-          variant="secondary"
-          size="sm"
-          className="h-10"
-          onClick={() => handlers.onToggleActive(product.id, true)}
-        >
-          {t.common.reactivate}
         </Button>
       )}
     </li>

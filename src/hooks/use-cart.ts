@@ -37,6 +37,12 @@ export type Cart = {
   clear: () => void;
   /** Total quantity of a product across all its cart lines (all modifier variants). */
   quantityForProduct: (productId: number) => number;
+  /**
+   * Trims every line of a product so their combined quantity is at most `max`
+   * (lines that fall to 0 are removed). Used when the server rejects an order
+   * because stock ran out in the meantime.
+   */
+  capProduct: (productId: number, max: number) => void;
 };
 
 /** Builds the stable line identity from a product and its chosen modifier ids. */
@@ -102,6 +108,27 @@ export function useCart(): Cart {
     });
   }, []);
 
+  const capProduct = useCallback((productId: number, max: number) => {
+    setLines((current) => {
+      const total = current
+        .filter((line) => line.productId === productId)
+        .reduce((sum, line) => sum + line.quantity, 0);
+      if (total <= max) return current;
+
+      // Trim from the last line backwards so the guest keeps their first choice.
+      let excess = total - max;
+      const trimmed = [...current];
+      for (let index = trimmed.length - 1; index >= 0 && excess > 0; index -= 1) {
+        const line = trimmed[index];
+        if (line.productId !== productId) continue;
+        const take = Math.min(line.quantity, excess);
+        trimmed[index] = { ...line, quantity: line.quantity - take };
+        excess -= take;
+      }
+      return trimmed.filter((line) => line.quantity > 0);
+    });
+  }, []);
+
   const remove = useCallback((lineId: string) => {
     setLines((current) => current.filter((line) => line.lineId !== lineId));
   }, []);
@@ -126,7 +153,17 @@ export function useCart(): Cart {
     );
   }, [lines]);
 
-  return { lines, itemCount, totalCents, add, setQuantity, remove, clear, quantityForProduct };
+  return {
+    lines,
+    itemCount,
+    totalCents,
+    add,
+    setQuantity,
+    remove,
+    clear,
+    quantityForProduct,
+    capProduct,
+  };
 }
 
 /** Maps a chosen catalog option to the cart's modifier shape. */

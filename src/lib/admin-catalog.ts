@@ -32,6 +32,8 @@ export type AdminProduct = {
   stockCount: number | null;
   /** Manual "sold out today" flag, independent of stockCount. */
   soldOut: boolean;
+  /** False = direct sale: a Kasse order of only such items skips the kitchen. */
+  needsPreparation: boolean;
   active: boolean;
   sortOrder: number;
   /** Ids of the modifier groups assigned to this product. */
@@ -111,6 +113,7 @@ export const createProductSchema = z.object({
   priceCents: priceSchema,
   imageUrl: imageUrlSchema.optional(),
   stockCount: stockSchema.optional(),
+  needsPreparation: z.boolean().optional(),
   modifierGroupIds: groupIdsSchema.optional(),
 });
 export const updateProductSchema = z.object({
@@ -119,6 +122,7 @@ export const updateProductSchema = z.object({
   priceCents: priceSchema.optional(),
   imageUrl: imageUrlSchema.optional(),
   stockCount: stockSchema.optional(),
+  needsPreparation: z.boolean().optional(),
   active: z.boolean().optional(),
   modifierGroupIds: groupIdsSchema.optional(),
 });
@@ -208,6 +212,7 @@ export function getAdminCatalog(): AdminCategory[] {
         imageUrl: product.imageUrl,
         stockCount: product.stockCount,
         soldOut: product.soldOut,
+        needsPreparation: product.needsPreparation,
         active: product.active,
         sortOrder: product.sortOrder,
         modifierGroupIds: groupsByProduct.get(product.id) ?? [],
@@ -351,6 +356,7 @@ export function createProduct(input: z.infer<typeof createProductSchema>): { id:
         priceCents: input.priceCents,
         imageUrl: input.imageUrl ?? null,
         stockCount: input.stockCount ?? null,
+        needsPreparation: input.needsPreparation ?? true,
         sortOrder: (next?.value ?? 0) + 1,
       })
       .returning({ id: products.id })
@@ -373,6 +379,7 @@ export function updateProduct(id: number, input: z.infer<typeof updateProductSch
       priceCents: number;
       imageUrl: string | null;
       stockCount: number | null;
+      needsPreparation: boolean;
       active: boolean;
       sortOrder: number;
     }> = {};
@@ -381,6 +388,9 @@ export function updateProduct(id: number, input: z.infer<typeof updateProductSch
     if (input.priceCents !== undefined) changes.priceCents = input.priceCents;
     if (input.imageUrl !== undefined) changes.imageUrl = input.imageUrl;
     if (input.stockCount !== undefined) changes.stockCount = input.stockCount;
+    if (input.needsPreparation !== undefined) {
+      changes.needsPreparation = input.needsPreparation;
+    }
     if (input.active !== undefined) changes.active = input.active;
 
     if (input.categoryId !== undefined && input.categoryId !== current.categoryId) {
@@ -401,6 +411,27 @@ export function updateProduct(id: number, input: z.infer<typeof updateProductSch
 
     if (Object.keys(changes).length === 0) return;
     tx.update(products).set(changes).where(eq(products.id, id)).run();
+  });
+}
+
+/**
+ * Permanently deletes a product — HARD delete, unlike the soft
+ * `updateProduct({ active: false })`. Order history survives: `order_items`
+ * snapshots name and price, and `order_items.product_id` is ON DELETE SET NULL.
+ * Its modifier-group assignments go with it via ON DELETE CASCADE.
+ * Returns the product's image URL so the caller can clean up the file.
+ */
+export function deleteProduct(id: number): string | null {
+  return db.transaction((tx) => {
+    const product = tx
+      .select({ imageUrl: products.imageUrl })
+      .from(products)
+      .where(eq(products.id, id))
+      .get();
+    if (!product) throw new AdminNotFoundError();
+
+    tx.delete(products).where(eq(products.id, id)).run();
+    return product.imageUrl;
   });
 }
 

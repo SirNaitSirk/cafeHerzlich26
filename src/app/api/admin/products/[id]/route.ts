@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
+  deleteProduct,
   moveProduct,
   moveSchema,
   setProductSoldOut,
@@ -12,6 +13,7 @@ import {
   updateProductSchema,
 } from "@/lib/admin-catalog";
 import { broadcast } from "@/lib/events";
+import { deleteUpload } from "@/lib/uploads";
 import { adminErrorResponse, parseId } from "@/app/api/admin/response";
 
 export const runtime = "nodejs";
@@ -64,9 +66,14 @@ export async function PATCH(
   }
 }
 
-/** Soft-deletes a product: active → false. Broadcasts `catalog:changed`. */
+/**
+ * Deletes a product. Default is a SOFT delete (active → false). With
+ * `?permanent=true` it is a HARD delete — the row goes for good and its image
+ * file is cleaned up; order history survives via the `order_items` snapshots.
+ * Broadcasts `catalog:changed`.
+ */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
   const id = parseId((await params).id);
@@ -74,8 +81,15 @@ export async function DELETE(
     return NextResponse.json({ error: "Ungültiges Produkt." }, { status: 400 });
   }
 
+  const permanent = new URL(request.url).searchParams.get("permanent") === "true";
+
   try {
-    updateProduct(id, { active: false });
+    if (permanent) {
+      const imageUrl = deleteProduct(id);
+      await deleteUpload(imageUrl);
+    } else {
+      updateProduct(id, { active: false });
+    }
     broadcast({ type: "catalog:changed" });
     return NextResponse.json({ ok: true });
   } catch (error) {

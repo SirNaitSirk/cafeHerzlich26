@@ -1,5 +1,6 @@
 "use client";
 
+import { useLayoutEffect, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronLeft, Minus, Plus, Trash2 } from "lucide-react";
 
@@ -8,7 +9,7 @@ import type { Cart } from "@/hooks/use-cart";
 import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import { formatEuros } from "@/lib/format";
 
-/** Cart review: quantities, optional name, continue to payment. */
+/** Cart review: quantities, required guest name, continue to payment. */
 export function CartScreen({
   cart,
   stockByProduct,
@@ -26,6 +27,16 @@ export function CartScreen({
   onContinue: () => void;
 }) {
   const t = useTerminalCopy();
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const hasName = name.trim().length > 0;
+
+  // Focus the name field the moment the cart opens. On iPadOS the on-screen
+  // keyboard only appears when focus() runs inside the user gesture that opened
+  // this screen — a layout effect still sits inside the discrete tap's commit,
+  // so this is the earliest (and only reliable) point to ask for it.
+  useLayoutEffect(() => {
+    nameInputRef.current?.focus();
+  }, []);
 
   return (
     <div className="mx-auto flex h-dvh w-full max-w-2xl flex-col px-4 py-4">
@@ -106,15 +117,35 @@ export function CartScreen({
           </AnimatePresence>
         </ul>
 
-        <div className="mt-6">
+        <div
+          className={`mt-6 rounded-2xl border-2 bg-white p-4 transition-colors ${
+            hasName ? "border-stone-200" : "border-amber-400 shadow-sm"
+          }`}
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <label htmlFor="cart-guest-name" className="text-base font-semibold text-stone-800">
+              {t.cart.nameLabel}
+            </label>
+            <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+              {t.cart.nameRequired}
+            </span>
+          </div>
           <Input
+            id="cart-guest-name"
+            ref={nameInputRef}
             value={name}
             onChange={(event) => onNameChange(event.target.value)}
             placeholder={t.cart.namePlaceholder}
             maxLength={40}
-            className="h-14 rounded-2xl bg-white text-base"
+            autoComplete="name"
+            enterKeyHint="done"
+            aria-required
+            aria-describedby="cart-guest-name-hint"
+            className="h-16 rounded-2xl bg-white text-lg"
           />
-          <p className="mt-1.5 px-1 text-sm text-stone-500">{t.cart.nameHint}</p>
+          <p id="cart-guest-name-hint" className="mt-2 text-sm text-stone-500">
+            {t.cart.nameHint}
+          </p>
         </div>
       </div>
 
@@ -128,10 +159,10 @@ export function CartScreen({
         <button
           type="button"
           onClick={onContinue}
-          disabled={cart.itemCount === 0 || name.trim().length === 0}
+          disabled={cart.itemCount === 0 || !hasName}
           className="w-full rounded-full bg-amber-600 py-5 text-lg font-semibold text-white shadow-lg disabled:opacity-50"
         >
-          {t.cart.continue}
+          {hasName ? t.cart.continue : t.cart.continueNeedsName}
         </button>
       </footer>
     </div>

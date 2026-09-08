@@ -138,7 +138,7 @@ export function CategoryManager({
                   {t.common.reactivate}
                 </Button>
               )}
-              {category.products.length === 0 && (
+              {!category.active && category.products.length === 0 && (
                 <Button
                   variant="ghost"
                   size="sm"

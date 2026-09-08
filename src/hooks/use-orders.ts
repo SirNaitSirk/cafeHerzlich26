@@ -6,7 +6,14 @@ import { useEventStream } from "@/hooks/use-event-stream";
 import type { OrderWithItems } from "@/lib/orders";
 
 /** A surface scope understood by `GET /api/orders?scope=…`. */
-export type OrdersScope = "kitchen" | "pickup" | "cash" | "ready" | "history" | "archive";
+export type OrdersScope =
+  | "kitchen"
+  | "pickup"
+  | "cash"
+  | "ready"
+  | "collected"
+  | "history"
+  | "archive";
 
 type UseOrdersResult = {
   orders: OrderWithItems[];
@@ -44,7 +51,8 @@ export function useOrders(
     }
   }, [scope]);
 
-  // Refetch on (re)connect too: bridges any change missed before the stream opened.
+  // The server snapshot can already be stale by the time the client hydrates.
+  // (Reconnect gaps are bridged by `useEventStream`, which refetches on `open`.)
   useEffect(() => {
     const timer = setTimeout(refetch, 0);
     return () => clearTimeout(timer);

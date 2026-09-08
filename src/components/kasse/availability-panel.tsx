@@ -5,7 +5,6 @@ import { toast } from "sonner";
 
 import { ProductImage } from "@/components/terminal/product-image";
 import { Button } from "@/components/ui/button";
-import { useCatalog } from "@/hooks/use-catalog";
 import type { CatalogCategory, CatalogProduct } from "@/lib/catalog";
 import { formatEuros } from "@/lib/format";
 import { kasseMessages as t } from "@/lib/messages";
@@ -16,16 +15,21 @@ import { cn } from "@/lib/utils";
  * where staff flip a product's manual "sold out today" flag with one tap. It is
  * NOT a product editor — only the soldOut toggle. Changes broadcast
  * `catalog:changed`, so the terminal greys the product out instantly.
+ *
+ * The catalog is owned by `KasseDashboard` (which stays mounted) and passed in,
+ * so this panel always opens on the current state.
  */
 export function AvailabilityPanel({
-  initialCatalog,
+  categories,
+  hasError,
+  refetchCatalog,
   onExit,
 }: {
-  initialCatalog: CatalogCategory[];
+  categories: CatalogCategory[];
+  hasError: boolean;
+  refetchCatalog: () => Promise<void>;
   onExit: () => void;
 }) {
-  const { categories, hasError, refetch } = useCatalog(initialCatalog);
-
   async function toggle(product: CatalogProduct) {
     const soldOut = !product.soldOut;
     try {
@@ -36,7 +40,7 @@ export function AvailabilityPanel({
       });
       if (response.ok) {
         toast.success(soldOut ? t.toasts.soldOut : t.toasts.available);
-        refetch();
+        void refetchCatalog();
         return;
       }
       toast.error(t.toasts.generic);

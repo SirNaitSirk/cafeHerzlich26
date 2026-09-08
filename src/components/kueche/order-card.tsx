@@ -106,9 +106,19 @@ export function OrderCard({
       <ul className="mt-4 space-y-1.5 border-t pt-3 text-lg">
         {order.items.map((item) => (
           <li key={item.id} className="flex items-baseline justify-between gap-3">
-            <span className="min-w-0">
+            {/* Items nobody has to prepare (a chocolate bar, a can of cola) stay in
+                the list — they still belong on the tray — but recede so the eye
+                lands on what actually has to be made. */}
+            <span className={cn("min-w-0", !item.needsPreparation && "text-muted-foreground")}>
               <span className="font-semibold tabular-nums">{item.quantity}×</span>{" "}
-              <span className="text-foreground/90">{item.nameSnapshot}</span>
+              <span className={cn(!item.needsPreparation ? undefined : "text-foreground/90")}>
+                {item.nameSnapshot}
+              </span>
+              {!item.needsPreparation && (
+                <span className="ml-2 rounded-full bg-muted px-2 py-0.5 align-middle text-xs font-medium">
+                  {t.directItem}
+                </span>
+              )}
               {item.modifiers.length > 0 ? (
                 <span className="mt-0.5 block text-sm text-muted-foreground">
                   {item.modifiers.map((mod) => `+ ${mod.nameSnapshot}`).join(", ")}

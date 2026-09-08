@@ -11,7 +11,6 @@ import { PaymentChoice } from "@/components/terminal/payment-choice";
 import { PaypalScreen } from "@/components/terminal/paypal-screen";
 import { SuccessScreen } from "@/components/terminal/success-screen";
 import { useCart } from "@/hooks/use-cart";
-import { useEventStream } from "@/hooks/use-event-stream";
 import { useTerminalCopy } from "@/hooks/use-terminal-language";
 import type { CatalogCategory } from "@/lib/catalog";
 import type { OrderSource, PaymentMethod } from "@/lib/db/schema";
@@ -27,6 +26,8 @@ export type CreatedOrder = {
   totalCents: number;
   guestName: string | null;
   method: PaymentMethod;
+  /** True when the order skips the kitchen — the Kasse hands it over directly. */
+  directSale: boolean;
 };
 
 /**
@@ -37,6 +38,12 @@ export type CreatedOrder = {
  * - Terminal wraps it with the welcome/attract screen + idle-timeout (`source: "terminal"`).
  * - Kasse mounts it directly to take an order on behalf of a guest (`source: "kasse"`).
  *
+ * The catalog is NOT owned here: the host passes live `categories` and a
+ * `refetchCatalog` from `useCatalog`. That hook must live in a component that
+ * stays mounted (the host), because this flow unmounts between orders — owning
+ * the catalog here meant missing every `catalog:changed` while idle and starting
+ * each order from a stale server snapshot.
+ *
  * `onExit` fires when the guest cancels out of the menu; `onComplete` fires after
  * the success screen. `onOrderCreated` fires the moment the order was accepted by
  * the server — the Kasse uses it to settle a cash order right away. The host
@@ -45,7 +52,8 @@ export type CreatedOrder = {
 export function OrderFlow({
   paypalHandle,
   cafeName,
-  initialCatalog,
+  categories,
+  refetchCatalog,
   source,
   onExit,
   onComplete,
@@ -53,13 +61,15 @@ export function OrderFlow({
 }: {
   paypalHandle: string | null;
   cafeName: string;
-  initialCatalog: CatalogCategory[];
+  /** Live catalog from the host's `useCatalog` — updates while the flow is open. */
+  categories: CatalogCategory[];
+  /** Forces an immediate catalog refetch (used after a rejected order). */
+  refetchCatalog: () => Promise<void>;
   source: OrderSource;
   onExit: () => void;
   onComplete: () => void;
   onOrderCreated?: (order: CreatedOrder) => void;
 }) {
-  const [categories, setCategories] = useState(initialCatalog);
   const [step, setStep] = useState<Step>("menu");
   const [name, setName] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -78,19 +88,6 @@ export function OrderFlow({
     }
     return map;
   }, [categories]);
-
-  const refetchCatalog = useCallback(async () => {
-    try {
-      const response = await fetch("/api/catalog", { cache: "no-store" });
-      if (!response.ok) return;
-      const data: { categories: CatalogCategory[] } = await response.json();
-      setCategories(data.categories);
-    } catch {
-      // network hiccup — keep the current catalog
-    }
-  }, []);
-
-  useEventStream(["catalog:changed"], refetchCatalog);
 
   const submitOrder = useCallback(
     async (method: PaymentMethod) => {
@@ -113,7 +110,19 @@ export function OrderFlow({
         });
 
         if (response.status === 409) {
-          toast.error(t.errors.stock);
+          // Stock ran out between browsing and submitting (another terminal was
+          // faster). Trim the offending line to what is actually left, tell the
+          // guest which product it was, and send them back to the menu.
+          const conflict: { productId?: number; productName?: string; available?: number } =
+            await response.json().catch(() => ({}));
+          if (conflict.productId !== undefined && conflict.available !== undefined) {
+            cart.capProduct(conflict.productId, conflict.available);
+          }
+          toast.error(
+            conflict.productName !== undefined && conflict.available !== undefined
+              ? t.errors.stockProduct(conflict.productName, conflict.available)
+              : t.errors.stock,
+          );
           await refetchCatalog();
           setStep("menu");
           return;
@@ -123,8 +132,12 @@ export function OrderFlow({
           return;
         }
 
-        const result: { id: number; orderNumber: number; totalCents: number } =
-          await response.json();
+        const result: {
+          id: number;
+          orderNumber: number;
+          totalCents: number;
+          directSale: boolean;
+        } = await response.json();
         const guestName = name.trim() || null;
         setLastOrder({
           method,

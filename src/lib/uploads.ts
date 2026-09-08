@@ -2,7 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync } from "node:fs";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /**
@@ -75,4 +75,21 @@ export async function readUpload(name: string): Promise<StoredUpload | null> {
   const path = join(/*turbopackIgnore: true*/ UPLOAD_DIR, name);
   if (!existsSync(path)) return null;
   return { body: await readFile(path), contentType: EXT_CONTENT_TYPE[ext] };
+}
+
+/**
+ * Removes a stored product image. Best effort: a missing file or a URL that
+ * isn't a local upload is silently ignored — deleting a product must never
+ * fail because of its image.
+ */
+export async function deleteUpload(url: string | null): Promise<void> {
+  if (!url) return;
+  const match = /^\/api\/uploads\/([a-f0-9-]+\.(?:jpg|png|webp))$/.exec(url);
+  if (!match) return;
+
+  try {
+    await unlink(join(/*turbopackIgnore: true*/ UPLOAD_DIR, match[1]));
+  } catch {
+    // File already gone (or never written) — nothing to clean up.
+  }
 }

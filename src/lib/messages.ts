@@ -45,9 +45,12 @@ const terminalDe = {
     empty: "Dein Warenkorb ist leer.",
     itemsLabel: (count: number) => (count === 1 ? "1 Artikel" : `${count} Artikel`),
     namePlaceholder: "Dein Name",
+    nameLabel: "Dein Name",
+    nameRequired: "Pflichtfeld",
     nameHint: "Bitte gib deinen Namen ein – er erscheint auf dem Abholmonitor.",
     remove: "Entfernen",
     continue: "Weiter zur Bezahlung",
+    continueNeedsName: "Bitte Namen eingeben",
     back: "Weiter einkaufen",
     total: "Summe",
     maxReached: "Maximaler Bestand erreicht",
@@ -80,6 +83,11 @@ const terminalDe = {
   },
   errors: {
     stock: "Leider ist ein Artikel nicht mehr verfügbar.",
+    /** Stock ran out while the guest was ordering; the cart was trimmed for them. */
+    stockProduct: (name: string, available: number) =>
+      available > 0
+        ? `„${name}" ist nur noch ${available}× verfügbar. Dein Warenkorb wurde angepasst.`
+        : `„${name}" ist leider ausverkauft und wurde aus deinem Warenkorb entfernt.`,
     generic: "Etwas ist schiefgelaufen. Bitte versuche es erneut.",
   },
 };
@@ -122,9 +130,12 @@ const terminalRu: TerminalMessages = {
     itemsLabel: (count: number) =>
       `${count} ${pluralRu(count, ["товар", "товара", "товаров"])}`,
     namePlaceholder: "Ваше имя",
+    nameLabel: "Ваше имя",
+    nameRequired: "Обязательно",
     nameHint: "Пожалуйста, введите имя — оно появится на экране выдачи.",
     remove: "Удалить",
     continue: "К оплате",
+    continueNeedsName: "Пожалуйста, введите имя",
     back: "Продолжить покупки",
     total: "Итого",
     maxReached: "Достигнут лимит наличия",
@@ -157,6 +168,10 @@ const terminalRu: TerminalMessages = {
   },
   errors: {
     stock: "К сожалению, один из товаров больше недоступен.",
+    stockProduct: (name: string, available: number) =>
+      available > 0
+        ? `«${name}» доступно только ${available} шт. Ваша корзина обновлена.`
+        : `«${name}» распродано и удалено из вашей корзины.`,
     generic: "Что-то пошло не так. Пожалуйста, попробуйте ещё раз.",
   },
 };
@@ -202,6 +217,8 @@ export const kitchenMessages = {
     terminal: "Terminal",
     kasse: "Kasse",
   },
+  /** Marks an item nobody has to prepare — just put it on the counter. */
+  directItem: "direkt",
   actions: {
     done: "Erledigt",
     edit: "Bearbeiten",
@@ -300,14 +317,33 @@ export const kasseMessages = {
       quickExact: "Passend",
       backspace: "Löschen",
       cancel: "Abbrechen",
+      directSaleHint: "Ware direkt aushändigen – geht nicht in die Küche.",
     },
   },
   ready: {
     heading: "Abholbereit",
     count: (count: number) => (count === 1 ? "1 Bestellung" : `${count} Bestellungen`),
     action: "Abgeholt",
+    undo: "Rückgängig",
     readyLabel: "fertig seit",
     empty: "Keine Bestellungen zur Abholung.",
+  },
+  collected: {
+    heading: "Zuletzt abgeholt",
+    count: (count: number) => (count === 1 ? "1 Bestellung" : `${count} Bestellungen`),
+    hint: "Versehentlich abgeholt? Hier zurückholen.",
+    action: "Zurückholen",
+    collapse: "Einklappen",
+    expand: "Anzeigen",
+    directSaleBadge: "Direktverkauf",
+    cancel: "Stornieren",
+    confirmCancel: {
+      title: "Direktverkauf stornieren?",
+      description: (label: string) =>
+        `„${label}“ wird storniert und der Bestand zurückgebucht. Das lässt sich nicht rückgängig machen.`,
+      confirm: "Stornieren",
+      cancel: "Abbrechen",
+    },
   },
   paymentBadge: {
     paypal: "PayPal",
@@ -330,7 +366,12 @@ export const kasseMessages = {
   },
   toasts: {
     cashSuccess: "Bestellung an die Küche übergeben.",
+    directSaleSuccess: "Kassiert – bitte direkt aushändigen.",
+    cancelSuccess: "Direktverkauf storniert.",
+    cancelGone: "Dieser Direktverkauf kann nicht mehr storniert werden.",
     collectSuccess: "Als abgeholt markiert.",
+    uncollectSuccess: "Zurück in die Abholung.",
+    uncollectGone: "Diese Bestellung ist nicht mehr abgeholt.",
     gone: "Diese Bestellung ist nicht mehr offen.",
     generic: "Etwas ist schiefgelaufen. Bitte erneut versuchen.",
     soldOut: "Als heute aus markiert.",
@@ -428,6 +469,19 @@ export const adminMessages = {
       markAvailable: "Wieder da",
       badge: "Heute aus",
     },
+    directSaleBadge: "Direktverkauf",
+    archive: {
+      heading: (count: number) =>
+        count === 1 ? "1 archiviertes Produkt" : `${count} archivierte Produkte`,
+      hint: "Deaktivierte Produkte — am Terminal nicht sichtbar.",
+    },
+    confirmDelete: {
+      title: "Produkt endgültig löschen?",
+      description: (name: string) =>
+        `„${name}“ wird dauerhaft gelöscht. Das kann nicht rückgängig gemacht werden. Bereits abgeschlossene Bestellungen bleiben unverändert.`,
+      confirm: "Endgültig löschen",
+      cancel: "Abbrechen",
+    },
     form: {
       createTitle: "Neues Produkt",
       editTitle: "Produkt bearbeiten",
@@ -442,6 +496,9 @@ export const adminMessages = {
       stock: "Bestand",
       stockHint: "Leer lassen = unbegrenzt. 0 = ausverkauft.",
       stockPlaceholder: "unbegrenzt",
+      preparation: "Muss zubereitet werden",
+      preparationHint:
+        "Aus = Direktverkauf: geht an der Kasse nicht in die Küche, sondern wird sofort ausgehändigt.",
     },
     toasts: {
       created: "Produkt angelegt.",
@@ -452,6 +509,7 @@ export const adminMessages = {
       stock: "Bestand aktualisiert.",
       soldOut: "Als heute aus markiert.",
       available: "Wieder verfügbar.",
+      deleted: "Produkt gelöscht.",
     },
   },
   modifiers: {

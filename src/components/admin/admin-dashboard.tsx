@@ -118,6 +118,13 @@ export function AdminDashboard({
           { action: "availability", soldOut },
           soldOut ? t.products.toasts.soldOut : t.products.toasts.available,
         ),
+      onDelete: (id) =>
+        mutate(
+          `/api/admin/products/${id}?permanent=true`,
+          "DELETE",
+          undefined,
+          t.products.toasts.deleted,
+        ),
     }),
     [mutate],
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BanknoteIcon, DeleteIcon } from "lucide-react";
+import { BanknoteIcon, DeleteIcon, HandCoinsIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,8 @@ export type CashRegisterOrder = {
   guestName: string | null;
   orderNumber: number;
   totalCents: number;
+  /** True when the goods are handed over right here instead of going to the kitchen. */
+  directSale: boolean;
 };
 
 const t = kasseMessages.cash.dialog;
@@ -112,6 +114,12 @@ export function CashRegisterDialog({
         <DialogHeader>
           <DialogTitle className="text-lg">{t.title}</DialogTitle>
           <p className="text-sm text-muted-foreground">{orderDisplayLabel(order)}</p>
+          {order.directSale && (
+            <p className="mt-1 flex items-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-200">
+              <HandCoinsIcon className="size-4 shrink-0" aria-hidden />
+              {t.directSaleHint}
+            </p>
+          )}
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2 sm:items-start">
